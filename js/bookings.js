@@ -18,17 +18,16 @@
       const auth = window.Auth;
 
       if (auth.isDemo()) {
-        const all = JSON.parse(
-          localStorage.getItem("rg_bookings") || "[]"
-        );
-
+        const all = JSON.parse(localStorage.getItem("rg_bookings") || "[]");
         const prof = auth.getUser();
+
         if (!prof) return [];
 
         return all.filter((b) => b.user_id === prof.id);
       }
 
       const user = auth.getUser();
+
       if (!user) return [];
 
       const { data, error } = await auth
@@ -44,7 +43,7 @@
 
     async upcoming() {
       const all = await Store.listAll();
-      const today = RG.toISODate(new Date());
+      const today = getTodayISO();
 
       return all
         .filter(
@@ -63,7 +62,8 @@
       const all = await Store.listAll();
 
       return (
-        all.find((b) => String(b.id) === String(id)) || null
+        all.find((b) => String(b.id) === String(id)) ||
+        null
       );
     },
 
@@ -86,9 +86,11 @@
           user_id: auth.getUser().id,
 
           service_name: payload.service_name,
+
           barber_name: payload.barber_name,
 
           booking_date: payload.booking_date,
+
           booking_time: payload.booking_time,
 
           status: "confirmed",
@@ -96,6 +98,7 @@
           reference,
 
           created_at: now,
+
           updated_at: now,
         };
 
@@ -133,7 +136,7 @@
       return data;
     },
 
-    /* Cancelar: nunca apaga. Apenas muda o estado. */
+    /* Cancelar: nunca apaga. Apenas muda o status. */
     async cancel(id) {
       const auth = window.Auth;
 
@@ -220,6 +223,18 @@
     },
   };
 
+  function getTodayISO() {
+    const now = new Date();
+
+    return (
+      now.getFullYear() +
+      "-" +
+      String(now.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(now.getDate()).padStart(2, "0")
+    );
+  }
+
   function genReference() {
     const chars =
       "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -261,20 +276,15 @@
 
   const state = {
     step: 0,
-
     service: null,
     barber: null,
     noBarberPref: true,
-
     date: null,
     time: null,
-
     nome: "",
     telefone: "",
     email: "",
-
     taken: [],
-
     submitting: false,
     lastBooking: null,
   };
@@ -307,6 +317,8 @@
       state.noBarberPref = !state.barber;
     }
 
+    if (!modal) return;
+
     modal.classList.add("open");
 
     document.body.style.overflow = "hidden";
@@ -315,22 +327,21 @@
   }
 
   function close() {
+    if (!modal) return;
+
     modal.classList.remove("open");
+
     document.body.style.overflow = "";
   }
 
   function resetState() {
     state.step = 0;
-
     state.service = null;
     state.barber = null;
     state.noBarberPref = true;
-
     state.date = null;
     state.time = null;
-
     state.taken = [];
-
     state.submitting = false;
     state.lastBooking = null;
   }
@@ -420,7 +431,9 @@
       (_, i) =>
         `<span class="step-dot ${
           i === s ? "active" : ""
-        } ${i < s ? "done" : ""}"></span>`
+        } ${
+          i < s ? "done" : ""
+        }"></span>`
     ).join("");
 
     body.innerHTML = "";
@@ -455,7 +468,8 @@
         state.submitting;
     } else {
       nextBtn.innerHTML = `
-        Continuar ${window.RGICONS.arrowRight}
+        Continuar
+        ${window.RGICONS.arrowRight}
       `;
 
       nextBtn.classList.add("btn-gold");
@@ -531,7 +545,9 @@
 
     if (state.step === 4) {
       await refreshStepData();
+
       render();
+
       return;
     }
 
@@ -680,6 +696,7 @@
             `
           )
           .join("")}
+
       </div>
     `;
 
@@ -723,39 +740,27 @@
   /* ========================================================
      PASSO 3 — DATA
      
-     CORREÇÃO:
-     - começa o calendário no dia 1 do mês
-     - dias anteriores a hoje ficam bloqueados
-     - mostra o mês atual
-     - continua automaticamente para o próximo mês
-     - nunca começa simplesmente no dia 12
+     CORRIGIDO:
+     - começa no dia 1
+     - atravessa meses automaticamente
+     - não depende de RG.addDays()
+     - não depende de RG.parseISO()
+     - mantém YYYY-MM-DD
      ======================================================== */
 
   function stepDate() {
     const days = [];
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
 
-    /*
-      Quantos dias mostrar no total.
-      Se bookingDaysAhead estiver configurado,
-      usamos esse valor.
-      Caso contrário, usamos 60 dias.
-    */
+    const startYear =
+      now.getFullYear();
+
+    const startMonth =
+      now.getMonth();
+
     const totalDays =
-      D.bookingDaysAhead || 60;
-
-    /*
-      Começa no primeiro dia do mês atual.
-      Assim o calendário nunca começa no dia 12,
-      13, 14 etc.
-    */
-    const firstDayOfMonth = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      1
-    );
+      Number(D.bookingDaysAhead) || 30;
 
     for (
       let i = 0;
@@ -763,37 +768,45 @@
       i++
     ) {
       const d = new Date(
-        firstDayOfMonth
+        startYear,
+        startMonth,
+        1 + i
       );
 
-      d.setDate(
-        firstDayOfMonth.getDate() + i
-      );
+      const year =
+        d.getFullYear();
 
-      d.setHours(0, 0, 0, 0);
+      const month =
+        d.getMonth();
+
+      const day =
+        d.getDate();
+
+      const dow =
+        d.getDay();
 
       const dateISO =
-        RG.toISODate(d);
-
-      const dow = d.getDay();
+        `${year}-${String(
+          month + 1
+        ).padStart(2, "0")}-${String(
+          day
+        ).padStart(2, "0")}`;
 
       const closed =
-        (
-          D.bookingClosedWeekdays ||
-          []
-        ).includes(dow);
-
-      /*
-        Datas anteriores a hoje ficam
-        desativadas.
-      */
-      const past = d < today;
+        Array.isArray(
+          D.bookingClosedWeekdays
+        ) &&
+        D.bookingClosedWeekdays.includes(
+          dow
+        );
 
       days.push({
         date: dateISO,
+        year,
+        month,
+        day,
         dow,
         closed,
-        past,
       });
     }
 
@@ -822,118 +835,46 @@
       "Dez",
     ];
 
-    /*
-      Agrupa os dias por mês.
-      Assim conseguimos mostrar claramente:
-
-      AGOSTO 2026
-      1 2 3 4 ...
-      ...
-
-      SETEMBRO 2026
-      1 2 3 ...
-    */
-    const months = {};
-
-    days.forEach((d) => {
-      const dt = RG.parseISO(d.date);
-
-      const key =
-        `${dt.getFullYear()}-${dt.getMonth()}`;
-
-      if (!months[key]) {
-        months[key] = {
-          year: dt.getFullYear(),
-          month: dt.getMonth(),
-          days: [],
-        };
-      }
-
-      months[key].days.push(d);
-    });
-
     body.innerHTML = `
-      <div class="date-calendar">
+      <div class="date-options">
 
-        ${Object.values(months)
-          .map((month) => {
-            return `
-              <div class="date-month">
+        ${days
+          .map(
+            (d) => `
+              <button
+                type="button"
+                class="date-opt ${
+                  state.date === d.date
+                    ? "selected"
+                    : ""
+                } ${
+                  d.closed
+                    ? "disabled"
+                    : ""
+                }"
+                data-date="${d.date}"
+                ${
+                  d.closed
+                    ? "disabled"
+                    : ""
+                }
+              >
 
-                <div class="date-month-title">
-                  ${monNames[month.month]}
-                  ${month.year}
-                </div>
+                <span class="dow">
+                  ${dowNames[d.dow]}
+                </span>
 
-                <div class="date-options">
+                <span class="day">
+                  ${d.day}
+                </span>
 
-                  ${month.days
-                    .map((d) => {
-                      const dt =
-                        RG.parseISO(
-                          d.date
-                        );
+                <span class="mon">
+                  ${monNames[d.month]}
+                </span>
 
-                      const selected =
-                        state.date ===
-                        d.date;
-
-                      const disabled =
-                        d.closed ||
-                        d.past;
-
-                      return `
-                        <button
-                          type="button"
-                          class="date-opt ${
-                            selected
-                              ? "selected"
-                              : ""
-                          } ${
-                            disabled
-                              ? "disabled"
-                              : ""
-                          }"
-                          data-date="${esc(
-                            d.date
-                          )}"
-                          ${
-                            disabled
-                              ? "disabled"
-                              : ""
-                          }
-                        >
-
-                          <span class="dow">
-                            ${
-                              dowNames[
-                                d.dow
-                              ]
-                            }
-                          </span>
-
-                          <span class="day">
-                            ${dt.getDate()}
-                          </span>
-
-                          <span class="mon">
-                            ${
-                              monNames[
-                                dt.getMonth()
-                              ]
-                            }
-                          </span>
-
-                        </button>
-                      `;
-                    })
-                    .join("")}
-
-                </div>
-
-              </div>
-            `;
-          })
+              </button>
+            `
+          )
           .join("")}
 
       </div>
@@ -946,20 +887,15 @@
         "
       >
         ${window.RGICONS.info}
-        Os dias encerrados e os dias anteriores
-        a hoje aparecem desativados.
+        Os dias encerrados aparecem esbatidos.
       </p>
     `;
 
-    /*
-      Só adiciona clique aos dias realmente
-      disponíveis.
-    */
     body
       .querySelectorAll(
         ".date-opt:not(.disabled)"
       )
-      .forEach((btn) => {
+      .forEach((btn) =>
         btn.addEventListener(
           "click",
           () => {
@@ -979,8 +915,8 @@
                 )
               );
           }
-        );
-      });
+        )
+      );
   }
 
   /* ========================================================
@@ -1016,7 +952,9 @@
       state.taken || [];
 
     const slots =
-      D.bookingSlots || [];
+      Array.isArray(D.bookingSlots)
+        ? D.bookingSlots
+        : [];
 
     const timeTaken = (t) =>
       state.barber
@@ -1033,7 +971,6 @@
 
     body.innerHTML = `
       <div class="slot-legend">
-
         <span class="lg-free">
           <i></i>
           Disponível
@@ -1043,7 +980,6 @@
           <i></i>
           Ocupado
         </span>
-
       </div>
 
       <div class="time-options">
@@ -1062,14 +998,14 @@
                     ? "disabled"
                     : ""
                 }"
-                data-time="${esc(t)}"
+                data-time="${t}"
                 ${
                   timeTaken(t)
                     ? "disabled"
                     : ""
                 }
               >
-                ${esc(t)}
+                ${t}
               </button>
             `
           )
@@ -1183,7 +1119,6 @@
         </div>
 
         <div class="field full">
-
           <label for="bkEmail">
             Email
           </label>
@@ -1198,7 +1133,6 @@
           <span class="hint">
             O email vem da tua conta Google.
           </span>
-
         </div>
 
       </div>
@@ -1213,15 +1147,13 @@
     iNome.addEventListener(
       "input",
       () =>
-        (state.nome =
-          iNome.value)
+        (state.nome = iNome.value)
     );
 
     iTel.addEventListener(
       "input",
       () =>
-        (state.telefone =
-          iTel.value)
+        (state.telefone = iTel.value)
     );
   }
 
@@ -1231,7 +1163,7 @@
 
   function stepSummary() {
     const dt =
-      RG.parseISO(state.date);
+      parseDateISO(state.date);
 
     const b =
       state.barber || {
@@ -1242,7 +1174,10 @@
       <div class="b-summary">
 
         <div class="sum-row">
-          <span class="k">Serviço</span>
+          <span class="k">
+            Serviço
+          </span>
+
           <span class="v">
             ${esc(state.service.name)}
             <span class="sub">
@@ -1252,42 +1187,50 @@
         </div>
 
         <div class="sum-row">
-          <span class="k">Barbeiro</span>
+          <span class="k">
+            Barbeiro
+          </span>
+
           <span class="v">
             ${esc(b.name)}
           </span>
         </div>
 
         <div class="sum-row">
-          <span class="k">Data</span>
+          <span class="k">
+            Data
+          </span>
+
           <span class="v">
-            ${dt
-              .getDate()
-              .toString()
-              .padStart(2, "0")}/${(
-              dt.getMonth() + 1
-            )
-              .toString()
-              .padStart(2, "0")}/${dt.getFullYear()}
+            ${formatDatePT(state.date)}
           </span>
         </div>
 
         <div class="sum-row">
-          <span class="k">Hora</span>
+          <span class="k">
+            Hora
+          </span>
+
           <span class="v">
             ${esc(state.time)}
           </span>
         </div>
 
         <div class="sum-row">
-          <span class="k">Nome</span>
+          <span class="k">
+            Nome
+          </span>
+
           <span class="v">
             ${esc(state.nome)}
           </span>
         </div>
 
         <div class="sum-row sum-total">
-          <span class="k">Total</span>
+          <span class="k">
+            Total
+          </span>
+
           <span class="v">
             ${state.service.price}€
           </span>
@@ -1308,11 +1251,6 @@
     const b =
       bk.barber_name || "—";
 
-    const dt =
-      RG.parseISO(
-        bk.booking_date
-      );
-
     body.innerHTML = `
       <div class="b-success">
 
@@ -1321,7 +1259,8 @@
         </span>
 
         <h3>
-          Marcação <em>confirmada</em>
+          Marcação
+          <em>confirmada</em>
         </h3>
 
         <p>
@@ -1332,44 +1271,54 @@
         <div class="b-summary suc-card">
 
           <div class="sum-row">
-            <span class="k">Serviço</span>
+            <span class="k">
+              Serviço
+            </span>
+
             <span class="v">
               ${esc(bk.service_name)}
             </span>
           </div>
 
           <div class="sum-row">
-            <span class="k">Barbeiro</span>
+            <span class="k">
+              Barbeiro
+            </span>
+
             <span class="v">
               ${esc(b)}
             </span>
           </div>
 
           <div class="sum-row">
-            <span class="k">Data</span>
+            <span class="k">
+              Data
+            </span>
+
             <span class="v">
-              ${dt
-                .getDate()
-                .toString()
-                .padStart(2, "0")}/${(
-                dt.getMonth() + 1
-              )
-                .toString()
-                .padStart(2, "0")}/${dt.getFullYear()}
+              ${formatDatePT(
+                bk.booking_date
+              )}
             </span>
           </div>
 
           <div class="sum-row">
-            <span class="k">Hora</span>
+            <span class="k">
+              Hora
+            </span>
+
             <span class="v">
-              ${esc(bk.booking_time)}
+              ${esc(
+                bk.booking_time
+              )}
             </span>
           </div>
 
         </div>
 
         <span class="suc-ref">
-          Referência · ${esc(bk.reference)}
+          Referência ·
+          ${esc(bk.reference)}
         </span>
 
         <div
@@ -1401,15 +1350,12 @@
 
     body
       .querySelector("#goBookings")
-      .addEventListener(
-        "click",
-        () => {
-          close();
+      .addEventListener("click", () => {
+        close();
 
-          window.location.href =
-            "profile.html#minhas-marcacoes";
-        }
-      );
+        window.location.href =
+          "profile.html#minhas-marcacoes";
+      });
 
     body
       .querySelector("#closeBooking")
@@ -1420,7 +1366,7 @@
   }
 
   /* ========================================================
-     CONFIRMAÇÃO DA MARCAÇÃO
+     CONFIRMAR MARCAÇÃO
      ======================================================== */
 
   async function confirmBooking() {
@@ -1478,7 +1424,9 @@
         );
 
         state.time = null;
+
         state.submitting = false;
+
         state.step = 3;
 
         return render();
@@ -1555,7 +1503,48 @@
   }
 
   /* ========================================================
-     ESC HELPER
+     HELPERS DE DATA
+     ======================================================== */
+
+  function parseDateISO(value) {
+    if (!value) {
+      return new Date();
+    }
+
+    const parts =
+      String(value).split("-");
+
+    if (parts.length !== 3) {
+      return new Date(value);
+    }
+
+    return new Date(
+      Number(parts[0]),
+      Number(parts[1]) - 1,
+      Number(parts[2])
+    );
+  }
+
+  function formatDatePT(value) {
+    const d =
+      parseDateISO(value);
+
+    return (
+      String(d.getDate()).padStart(
+        2,
+        "0"
+      ) +
+      "/" +
+      String(
+        d.getMonth() + 1
+      ).padStart(2, "0") +
+      "/" +
+      d.getFullYear()
+    );
+  }
+
+  /* ========================================================
+     ESC
      ======================================================== */
 
   function esc(s) {
