@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Área de Cliente — Barbearia RickGino</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0a0a0a">
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/profile.css">
+</head>
+
+<body>
+
+  <!-- ============ HEADER ============ -->
+  <header class="site-header scrolled">
+    <div class="container nav-wrap">
+      <a href="index.html" class="brand" aria-label="Ir para o site da Barbearia RickGino">
+        <span class="brand-mark" id="brandIcon"></span>
+        <span><span class="brand-name">Barbearia <em>RickGino</em></span></span>
+      </a>
+      <div class="nav-actions">
+        <a href="index.html" class="btn btn-outline btn-sm btn-nav">← Voltar ao site</a>
+        <div class="auth-area" id="authArea"></div>
+        <button class="burger" id="burger" aria-label="Abrir menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="mobile-nav" id="mobileNav" aria-label="Menu móvel">
+    <a href="index.html" class="m-nav-link" style="transition-delay:.05s">Voltar ao site</a>
+    <div class="m-auth" id="mobileAuth" style="transition-delay:.1s"></div>
+  </div>
+
+  <!-- ============ PAINEL ============ -->
+  <main class="profile-page">
+    <div class="container">
+
+      <div class="demo-banner" id="demoBanner"></div>
+
+      <div class="profile-layout">
+        <!-- Sidebar -->
+        <aside class="profile-side">
+          <div class="ps-user" id="psUser">
+            <span class="user-avatar skeleton"></span>
+            <div><b>Carregando…</b><span>…</span></div>
+          </div>
+
+          <nav class="ps-nav" aria-label="Navegação da conta">
+            <button type="button" data-view="visao-geral" class="active"><span id="navOverview"></span>Visão geral</button>
+            <button type="button" data-view="meu-perfil"><span id="navProfile"></span>Meu perfil</button>
+            <button type="button" data-view="minhas-marcacoes"><span id="navBookings"></span>Próxima marcação</button>
+            <button type="button" data-view="historico"><span id="navHistory"></span>Histórico</button>
+            <button type="button" data-view="definicoes"><span id="navSettings"></span>Definições</button>
+            <button type="button" class="ps-out" id="psLogout"><span id="navLogout"></span>Sair</button>
+          </nav>
+        </aside>
+
+        <!-- Conteúdo -->
+        <div class="profile-main">
+          <div class="pm-head">
+            <div>
+              <h1 id="pmTitle">Visão geral</h1>
+              <p class="pm-sub" id="pmSub">O teu espaço na RickGino</p>
+            </div>
+            <button type="button" class="btn btn-gold btn-sm" data-book>Nova marcação</button>
+          </div>
+
+          <div id="pmView"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ MODAL DE CANCELAMENTO ============ -->
+  <div class="confirm-overlay" id="confirmModal" role="dialog" aria-modal="true">
+    <div class="confirm-modal">
+      <span class="cm-ic" id="confirmIcon"></span>
+      <h3>Cancelar marcação?</h3>
+      <p>Tem a certeza que pretende cancelar esta marcação?</p>
+      <p class="cm-detail" id="confirmDetail"></p>
+      <div class="cm-actions">
+        <button type="button" class="btn btn-outline" id="confirmCancel">Voltar</button>
+        <button type="button" class="btn" id="confirmBtn" style="background:#e0876f;color:#1a0d08">Confirmar cancelamento</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCRIPTS ============ -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/bookings.js"></script>
+  <script src="js/profile.js"></script>
+  <script>
+    var ic = window.RGICONS;
+    document.getElementById('brandIcon').innerHTML = ic.scissors;
+    document.getElementById('navOverview').innerHTML = ic.layout;
+    document.getElementById('navProfile').innerHTML = ic.user;
+    document.getElementById('navBookings').innerHTML = ic.calendar;
+    document.getElementById('navHistory').innerHTML = ic.history;
+    document.getElementById('navSettings').innerHTML = ic.settings;
+    document.getElementById('navLogout').innerHTML = ic.logout;
+    document.getElementById('confirmIcon').innerHTML = ic.calendarX;
+    window.Auth.init();
+  </script>
+</body>
+</html>

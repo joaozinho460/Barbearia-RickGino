@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barbearia RickGino — Barbeiro Premium em Setúbal | Corte, Barba & Estilo</title>
+
+  <!-- ============ SEO ============ -->
+  <meta name="description" content="Barbearia RickGino em Setúbal. Cortes premium, barba tradicional, coloração e tratamentos. 4,8 estrelas no Google. Marca a tua visita: +351 934 892 154.">
+  <meta name="keywords" content="barbearia setúbal, barbeiro setúbal, corte de cabelo setúbal, barba, barber shop setúbal, Barbearia RickGino">
+  <meta name="author" content="Barbearia RickGino">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="canonical" href="https://www.barbeariarickgino.pt/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Barbearia RickGino — Barbeiro Premium em Setúbal">
+  <meta property="og:description" content="Cortes premium, barba tradicional e tratamentos em Setúbal. Reserva online: +351 934 892 154.">
+  <meta property="og:url" content="https://www.barbeariarickgino.pt/">
+  <meta property="og:image" content="https://images.unsplash.com/photo-1621605815971-fbc98d665033?q=80&w=1200&auto=format&fit=crop">
+  <meta property="og:locale" content="pt_PT">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://images.unsplash.com">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/booking.css">
+
+  <!-- Schema.org — LocalBusiness / BarberShop -->
+  <!--
+    ADVERTÊNCIA: atualiza "url" quando o site estiver online.
+    Telefone, morada e redes sociais já estão preenchidos.
+  -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BarberShop",
+    "name": "Barbearia RickGino",
+    "image": "https://images.unsplash.com/photo-1621605815971-fbc98d665033?q=80&w=1200&auto=format&fit=crop",
+    "url": "https://www.barbeariarickgino.pt",
+    "telephone": "+351934892154",
+    "priceRange": "€€",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "R. Dr. António Manuel Gamito 2",
+      "postalCode": "2900-481",
+      "addressLocality": "Setúbal",
+      "addressCountry": "PT"
+    },
+    "geo": { "@type": "GeoCoordinates", "latitude": 38.5243, "longitude": -8.8880 },
+    "openingHoursSpecification": [
+      { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"], "opens": "09:00", "closes": "19:00" }
+    ],
+    "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "63" },
+    "sameAs": ["https://www.instagram.com/barbearia_rickgino/"]
+  }
+  </script>
+</head>
+
+<body id="top">
+
+  <!-- ============ HEADER ============ -->
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a href="#top" class="brand" aria-label="Barbearia RickGino">
+        <span class="brand-mark" id="brandIcon"></span>
+        <span>
+          <span class="brand-name">Barbearia <em>RickGino</em></span>
+        </span>
+      </a>
+
+      <nav class="main-nav" aria-label="Navegação principal">
+        <a href="#sobre" class="nav-link">Sobre</a>
+        <a href="#servicos" class="nav-link">Serviços</a>
+        <a href="#equipa" class="nav-link">Equipa</a>
+        <a href="#galeria" class="nav-link">Galeria</a>
+        <a href="#avaliacoes" class="nav-link">Avaliações</a>
+        <a href="#contacto" class="nav-link">Contacto</a>
+      </nav>
+
+      <div class="nav-actions">
+        <div class="auth-area" id="authArea"><!-- preenchido por auth.js --></div>
+        <a href="#marcacao" class="btn btn-gold btn-sm btn-nav" data-book>Marcar</a>
+        <button class="burger" id="burger" aria-label="Abrir menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Menu mobile -->
+  <nav class="mobile-nav" id="mobileNav" aria-label="Menu móvel">
+    <a href="#sobre" class="m-nav-link" style="transition-delay:.05s">Sobre</a>
+    <a href="#servicos" class="m-nav-link" style="transition-delay:.1s">Serviços</a>
+    <a href="#equipa" class="m-nav-link" style="transition-delay:.15s">Equipa</a>
+    <a href="#galeria" class="m-nav-link" style="transition-delay:.2s">Galeria</a>
+    <a href="#avaliacoes" class="m-nav-link" style="transition-delay:.25s">Avaliações</a>
+    <a href="#contacto" class="m-nav-link" style="transition-delay:.3s">Contacto</a>
+    <a href="#marcacao" class="m-nav-link" style="transition-delay:.35s" data-book>Marcar</a>
+    <div class="m-auth" id="mobileAuth" style="transition-delay:.45s"></div>
+  </nav>
+
+  <main>
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <div class="hero-bg"></div>
+      <div class="hero-overlay"></div>
+      <div class="hero-inner">
+        <p class="hero-kicker">Barber Shop · Setúbal</p>
+        <h1 class="hero-title">
+          <span class="stroke">Estilo</span><br>
+          <span>Com <em class="gold serif" style="font-family:var(--font-serif);text-transform:none;font-size:.9em">carácter</em>.</span>
+        </h1>
+        <p class="hero-lead">
+          Cortes clássicos, barba tradicional e acabamentos de luxo — na Barbearia RickGino.
+          A tua imagem, nas mãos de quem entende.
+        </p>
+        <div class="hero-cta">
+          <a href="#marcacao" class="btn btn-gold" data-book>Marcar agora</a>
+          <a href="#servicos" class="btn btn-outline">Ver serviços</a>
+        </div>
+        <div class="hero-meta" id="heroMeta"></div>
+      </div>
+      <div class="scroll-hint"><span class="wheel"></span><span>Scroll</span></div>
+    </section>
+
+    <!-- ============ MARQUEE ============ -->
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>Cortes Premium <i class="dot">✦</i></span>
+        <span>Barba Tradicional <i class="dot">✦</i></span>
+        <span>Toalha Quente <i class="dot">✦</i></span>
+        <span>Coloração & Luzes <i class="dot">✦</i></span>
+        <span>Prótese Capilar <i class="dot">✦</i></span>
+        <span>Setúbal <i class="dot">✦</i></span>
+      </div>
+    </div>
+
+    <!-- ============ SOBRE ============ -->
+    <section class="section" id="sobre">
+      <div class="container about-grid">
+        <div class="about-media reveal reveal-left">
+          <div class="about-img">
+            <span class="frame"></span>
+            <img src="" alt="Barbearia RickGino" loading="lazy">
+          </div>
+          <div class="about-badge">
+            <b data-count="4.8" data-decimals="1">4,8</b>
+            <span>Google Rating</span>
+          </div>
+        </div>
+        <div class="about-body reveal reveal-right">
+          <span class="eyebrow">Sobre nós</span>
+          <h2 class="section-title">A arte de <span class="thin">bem</span> cortar.</h2>
+          <p class="body">
+            Na Barbearia RickGino, cada visita é mais do que um corte — é um ritual.
+            Uma equipa de barbeiros apaixonados pelo ofício, no centro de Setúbal, ao
+            serviço da tua imagem.
+          </p>
+          <p class="body">
+            Trabalhamos técnicas clássicas e tendências atuais: do fade mais preciso
+            à barba de navalha com toalha quente. Ambiente masculino, cuidado e sem pressa.
+          </p>
+          <ul class="about-feats">
+            <li><i class="feat-dot"></i> Atendimento por marcação</li>
+            <li><i class="feat-dot"></i> Produtos de qualidade</li>
+            <li><i class="feat-dot"></i> Equipa especializada</li>
+            <li><i class="feat-dot"></i> No centro de Setúbal</li>
+          </ul>
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <a href="#equipa" class="btn btn-outline">Conhecer a equipa</a>
+            <a href="tel:+351934892154" class="btn btn-ghost">Ligar agora</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SERVIÇOS ============ -->
+    <section class="section section-alt" id="servicos">
+      <div class="container">
+        <div class="services-head">
+          <div class="reveal">
+            <span class="eyebrow">Serviços</span>
+            <h2 class="section-title">Preços & <span class="thin">serviços</span></h2>
+            <p class="section-sub">Tudo o que precisas para sair renovado. Preços transparentes, sem surpresas.</p>
+          </div>
+          <a href="#marcacao" class="btn btn-gold reveal" data-book>Marcar agora</a>
+        </div>
+        <div class="services-grid" id="servicesGrid"></div>
+      </div>
+    </section>
+
+    <!-- ============ EQUIPA ============ -->
+    <section class="section" id="equipa">
+      <div class="container">
+        <div class="services-head">
+          <div class="reveal">
+            <span class="eyebrow">Equipa</span>
+            <h2 class="section-title">Os <span class="thin">barbeiros</span></h2>
+            <p class="section-sub">Escolhe o teu barbeiro. Cada um com a sua especialidade.</p>
+          </div>
+        </div>
+        <div class="team-grid" id="teamGrid"></div>
+      </div>
+    </section>
+
+    <!-- ============ GALERIA ============ -->
+    <section class="section section-alt" id="galeria">
+      <div class="container">
+        <div class="services-head">
+          <div class="reveal">
+            <span class="eyebrow">Galeria</span>
+            <h2 class="section-title">O nosso <span class="thin">trabalho</span></h2>
+            <p class="section-sub">Resultados à vista. Clique para ampliar.</p>
+          </div>
+        </div>
+        <div class="gallery-grid" id="galleryGrid"></div>
+      </div>
+    </section>
+
+    <!-- ============ AVALIAÇÕES ============ -->
+    <section class="section" id="avaliacoes">
+      <div class="container">
+        <div class="reviews-head">
+          <div class="reveal reveal-left">
+            <span class="eyebrow">Avaliações</span>
+            <h2 class="section-title">O que dizem <span class="thin">de nós</span></h2>
+          </div>
+          <div class="google-card reveal reveal-right">
+            <span class="g-logo" id="googleLogo"></span>
+            <div>
+              <div style="display:flex;align-items:baseline;gap:10px"><b class="rating">4,8</b><span class="stars" id="googleStars"></span></div>
+              <p><strong style="color:var(--white)">63 avaliações</strong> no Google · <a href="https://www.instagram.com/barbearia_rickgino/" target="_blank" rel="noopener">segue-nos no Instagram</a></p>
+            </div>
+          </div>
+        </div>
+        <div class="reviews-grid" id="reviewsGrid"></div>
+      </div>
+    </section>
+
+    <!-- ============ CTA (dinâmico) ============ -->
+    <section class="cta-band" id="ctaBand"></section>
+
+    <!-- ============ LOCALIZAÇÃO + HORÁRIOS ============ -->
+    <section class="section" id="localizacao">
+      <div class="container">
+        <div class="services-head">
+          <div class="reveal">
+            <span class="eyebrow">Localização & Horários</span>
+            <h2 class="section-title">Encontra-<span class="thin">nos</span></h2>
+            <p class="section-sub">Estamos no centro de Setúbal, de segunda a sábado.</p>
+          </div>
+        </div>
+
+        <div class="loc-grid">
+          <div>
+            <div class="loc-card reveal">
+              <span class="l-icon" id="pinIcon"></span>
+              <div>
+                <h3>Morada</h3>
+                <p>R. Dr. António Manuel Gamito 2</p>
+                <p>2900-481 Setúbal, Portugal</p>
+              </div>
+            </div>
+            <div class="loc-card reveal" style="--d:.06s">
+              <span class="l-icon" id="phoneIcon"></span>
+              <div>
+                <h3>Contacto</h3>
+                <p><a href="tel:+351934892154">+351 934 892 154</a></p>
+                <p><a href="https://www.instagram.com/barbearia_rickgino/" target="_blank" rel="noopener">@barbearia_rickgino</a></p>
+                <div class="loc-actions">
+                  <a href="tel:+351934892154" class="btn btn-outline btn-sm">Ligar</a>
+                  <a href="https://wa.me/351934892154" target="_blank" rel="noopener" class="btn btn-outline btn-sm">WhatsApp</a>
+                  <a href="https://www.instagram.com/barbearia_rickgino/" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Instagram</a>
+                </div>
+              </div>
+            </div>
+            <div class="loc-card reveal" style="--d:.12s">
+              <span class="l-icon" id="navIcon"></span>
+              <div>
+                <h3>Como chegar</h3>
+                <p>Fácil acesso pelo centro de Setúbal. Junto à zona comercial, com estacionamento nas redondezas.</p>
+                <div class="loc-actions">
+                  <a href="https://www.google.com/maps/dir/?api=1&destination=R.+Dr.+Ant%C3%B3nio+Manuel+Gamito+2,+2900-481+Set%C3%BAbal" target="_blank" rel="noopener" class="btn btn-gold btn-sm">Obter direções</a>
+                </div>
+              </div>
+            </div>
+            <div class="map-frame reveal">
+              <iframe title="Mapa da Barbearia RickGino" src="https://maps.google.com/maps?q=R.%20Dr.%20Ant%C3%B3nio%20Manuel%20Gamito%202%2C%202900-481%20Set%C3%BAbal&t=&z=15&ie=UTF8&iwloc=&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+            </div>
+          </div>
+
+          <div class="hours-card reveal">
+            <h3><span id="clockIcon"></span> Horário de funcionamento</h3>
+            <ul class="hours-list" id="hoursList"></ul>
+            <div class="hours-note" id="hoursNote"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CONTACTO ============ -->
+    <section class="section section-alt" id="contacto">
+      <div class="container">
+        <div class="services-head">
+          <div class="reveal">
+            <span class="eyebrow">Contacto</span>
+            <h2 class="section-title">Fala <span class="thin">connosco</span></h2>
+            <p class="section-sub">Marca por telefone, WhatsApp ou Instagram — ou reserva online em segundos.</p>
+          </div>
+        </div>
+        <div class="loc-grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+          <a href="tel:+351934892154" class="loc-card reveal" style="text-decoration:none">
+            <span class="l-icon" id="phoneIcon2"></span>
+            <div>
+              <h3>Telefone</h3>
+              <p style="color:var(--white);font-weight:600">+351 934 892 154</p>
+              <p>Chamada rápida direta</p>
+            </div>
+          </a>
+          <a href="https://wa.me/351934892154" target="_blank" rel="noopener" class="loc-card reveal" style="--d:.06s;text-decoration:none">
+            <span class="l-icon" id="waIcon"></span>
+            <div>
+              <h3>WhatsApp</h3>
+              <p style="color:var(--white);font-weight:600">+351 934 892 154</p>
+              <p>Responde rápido</p>
+            </div>
+          </a>
+          <a href="https://www.instagram.com/barbearia_rickgino/" target="_blank" rel="noopener" class="loc-card reveal" style="--d:.12s;text-decoration:none">
+            <span class="l-icon" id="igIcon"></span>
+            <div>
+              <h3>Instagram</h3>
+              <p style="color:var(--white);font-weight:600">@barbearia_rickgino</p>
+              <p>Últimos cortes e novidades</p>
+            </div>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid" id="footerDynamic"></div>
+      <div class="footer-bottom">
+        <span>© <span id="year"></span> Barbearia RickGino · Setúbal, Portugal</span>
+        <span><a href="profile.html">Área de cliente</a> · <a href="#top">Voltar ao topo ↑</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============ LIGHTBOX ============ -->
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" aria-label="Fechar">✕</button>
+    <img src="" alt="" id="lightboxImg">
+  </div>
+
+  <!-- ============ MODAL DE MARCAÇÃO ============ -->
+  <div class="booking-overlay" id="bookingModal">
+    <div class="booking-modal" role="dialog" aria-modal="true" aria-labelledby="bookingTitle">
+      <div class="booking-head">
+        <div class="b-title">Barbearia <em>RickGino</em></div>
+        <button class="booking-close" id="bookingClose" aria-label="Fechar">✕</button>
+      </div>
+      <div class="booking-steps" id="bookingDots"></div>
+      <div class="booking-body">
+        <p class="b-step-label" id="bookingStepLabel">Passo 1 de 7</p>
+        <h3 class="b-step-title" id="bookingStepTitle">Serviço</h3>
+        <div id="bookingStep"></div>
+      </div>
+      <div class="booking-foot" id="bookingFoot">
+        <button class="b-back" id="bookingBack">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Voltar
+        </button>
+        <button class="btn btn-gold b-next" id="bookingNext">Continuar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCRIPTS ============ -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/bookings.js"></script>
+  <script>
+    // ícones estáticos no HTML
+    var ic = window.RGICONS;
+    var el = document.getElementById('brandIcon'); if (el) el.innerHTML = ic.scissors;
+    el = document.getElementById('googleLogo'); if (el) el.innerHTML = ic.google;
+    el = document.getElementById('googleStars'); if (el) el.innerHTML = ic.star.repeat(5);
+    el = document.getElementById('pinIcon'); if (el) el.innerHTML = ic.pin;
+    el = document.getElementById('phoneIcon'); if (el) el.innerHTML = ic.phone;
+    el = document.getElementById('navIcon'); if (el) el.innerHTML = ic.pin;
+    el = document.getElementById('clockIcon'); if (el) el.innerHTML = ic.clock;
+    el = document.getElementById('phoneIcon2'); if (el) el.innerHTML = ic.phone;
+    el = document.getElementById('waIcon'); if (el) el.innerHTML = ic.phone;
+    el = document.getElementById('igIcon'); if (el) el.innerHTML = ic.instagram;
+    document.getElementById('year').textContent = new Date().getFullYear();
+    window.Auth.init();
+  </script>
+</body>
+</html>

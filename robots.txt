@@ -1,0 +1,8 @@
+# Barbearia RickGino — robots.txt
+# Atualizar o domínio quando o site estiver online.
+
+User-agent: *
+Allow: /
+Disallow: /profile.html
+
+Sitemap: https://www.barbeariarickgino.pt/sitemap.xml
