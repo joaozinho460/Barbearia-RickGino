@@ -1,4 +1,3 @@
-```javascript
 "use strict";
 
 (function () {
@@ -9,7 +8,7 @@
      BOOKINGS STORE
      Compatível com:
      public.booking
-     
+
      id
      created_at
      Nome
@@ -101,7 +100,6 @@
 
     async create(payload) {
       const auth = window.Auth;
-
       const user = auth.getUser();
 
       if (!user) {
@@ -151,10 +149,10 @@
       /* ---------------- SUPABASE ---------------- */
 
       const insertData = {
-        "Nome": payload.nome || "",
-        "E-mail": payload.email || "",
-        "Serviço": payload.service_name || "",
-        "Barbeiro": payload.barber_name || "",
+        "Nome": String(payload.nome || "").trim(),
+        "E-mail": String(payload.email || "").trim(),
+        "Serviço": String(payload.service_name || "").trim(),
+        "Barbeiro": String(payload.barber_name || "").trim(),
         "Data": payload.booking_date || null,
         "Hora": payload.booking_time || null,
         "Status": "confirmada",
@@ -162,16 +160,46 @@
       };
 
       console.log(
-        "Inserindo marcação:",
+        "BOOKING - utilizador:",
+        user.id
+      );
+
+      console.log(
+        "BOOKING - dados:",
         insertData
       );
 
-      const { data, error } = await auth
-        .getClient()
+      if (!insertData["Data"]) {
+        throw new Error(
+          "A data da marcação está vazia."
+        );
+      }
+
+      if (!insertData["Hora"]) {
+        throw new Error(
+          "O horário da marcação está vazio."
+        );
+      }
+
+      if (!insertData["Serviço"]) {
+        throw new Error(
+          "O serviço da marcação está vazio."
+        );
+      }
+
+      const client = auth.getClient();
+
+      /*
+       * IMPORTANTE:
+       * Não usamos .select() aqui.
+       *
+       * Assim o INSERT não depende de uma policy
+       * de SELECT para conseguir confirmar a marcação.
+       */
+
+      const { error } = await client
         .from("booking")
-        .insert(insertData)
-        .select()
-        .single();
+        .insert(insertData);
 
       if (error) {
         console.error(
@@ -179,10 +207,39 @@
           error
         );
 
+        console.error(
+          "Código:",
+          error.code
+        );
+
+        console.error(
+          "Mensagem:",
+          error.message
+        );
+
+        console.error(
+          "Detalhes:",
+          error.details
+        );
+
+        console.error(
+          "Hint:",
+          error.hint
+        );
+
         throw error;
       }
 
-      return data;
+      /*
+       * Retornamos os dados que acabaram de ser gravados.
+       * O Supabase já confirmou que o INSERT foi realizado.
+       */
+
+      return {
+        id: null,
+        created_at: new Date().toISOString(),
+        ...insertData
+      };
     },
 
     /* ============================================================
@@ -300,7 +357,7 @@
             String(
               b["Status"] || ""
             ).toLowerCase() !==
-            "cancelada"
+              "cancelada"
           );
         })
         .map(b => ({
@@ -1798,6 +1855,53 @@
       return;
     }
 
+    /* Segurança extra antes de enviar */
+
+    if (!window.Auth.isLoggedIn()) {
+      window.showToast(
+        "Inicia sessão para confirmar a marcação.",
+        "error"
+      );
+
+      return;
+    }
+
+    if (!state.service) {
+      window.showToast(
+        "Seleciona um serviço.",
+        "error"
+      );
+
+      return;
+    }
+
+    if (!state.date) {
+      window.showToast(
+        "Seleciona uma data.",
+        "error"
+      );
+
+      return;
+    }
+
+    if (!state.time) {
+      window.showToast(
+        "Seleciona um horário.",
+        "error"
+      );
+
+      return;
+    }
+
+    if (!state.nome.trim()) {
+      window.showToast(
+        "Indica o teu nome.",
+        "error"
+      );
+
+      return;
+    }
+
     state.submitting =
       true;
 
@@ -1856,8 +1960,12 @@
                   5
                 ) ===
                   wantedTime &&
-                x.barber_name ===
-                  barberName
+                String(
+                  x.barber_name || ""
+                ) ===
+                  String(
+                    barberName
+                  )
             )
           : taken.some(
               x =>
@@ -1895,6 +2003,11 @@
         "Verificação de horário falhou:",
         error
       );
+
+      /*
+       * Não bloqueamos a marcação apenas porque
+       * a consulta de disponibilidade falhou.
+       */
     }
 
     /* ----------------------------------------------------------
@@ -1902,6 +2015,30 @@
        ---------------------------------------------------------- */
 
     try {
+      console.log(
+        "CONFIRMANDO BOOKING..."
+      );
+
+      console.log(
+        "Data:",
+        state.date
+      );
+
+      console.log(
+        "Hora:",
+        state.time
+      );
+
+      console.log(
+        "Serviço:",
+        state.service.name
+      );
+
+      console.log(
+        "Barbeiro:",
+        barberName
+      );
+
       const booking =
         await Store.create({
           nome:
@@ -1923,7 +2060,13 @@
             state.time
         });
 
+      console.log(
+        "BOOKING CRIADO COM SUCESSO:",
+        booking
+      );
+
       /* Atualizar perfil */
+
       try {
         await window.Auth.updateProfile(
           {
@@ -1970,6 +2113,40 @@
       if (nextBtn) {
         nextBtn.disabled =
           false;
+      }
+
+      /*
+       * Mostra uma mensagem melhor no console
+       * para conseguirmos identificar RLS,
+       * coluna errada ou outro erro do Supabase.
+       */
+
+      if (error?.code) {
+        console.error(
+          "Supabase code:",
+          error.code
+        );
+      }
+
+      if (error?.message) {
+        console.error(
+          "Supabase message:",
+          error.message
+        );
+      }
+
+      if (error?.details) {
+        console.error(
+          "Supabase details:",
+          error.details
+        );
+      }
+
+      if (error?.hint) {
+        console.error(
+          "Supabase hint:",
+          error.hint
+        );
       }
 
       window.showToast(
@@ -2022,4 +2199,3 @@
   );
 
 })();
-```
