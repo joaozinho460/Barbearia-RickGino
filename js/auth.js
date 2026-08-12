@@ -83,7 +83,7 @@ window.Auth = {
       await window.supabaseClient.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: "https://barbearia-rick-gino.vercel.app/"
+         redirectTo: "https://barbearia-rick-gino.vercel.app/"
         }
       });
 
