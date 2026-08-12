@@ -1,7 +1,8 @@
+```javascript
 /* ============================================================
    Barbearia RickGino — bookings.js
    Fluxo de marcação em 7 passos + camada de dados das
-   marcações utilizada pelo wizard e pelo painel de perfil.
+   marcações.
    ============================================================ */
 
 "use strict";
@@ -12,13 +13,13 @@
 
   /* ========================================================
      BOOKINGS STORE
-     - Modo demo: localStorage
-     - Modo real: Supabase
-     - Tabela real: public.booking
      ======================================================== */
 
   const Store = {
 
+    /* --------------------------------------------------------
+       LISTAR MARCAÇÕES DO UTILIZADOR
+       -------------------------------------------------------- */
     async listAll() {
       const auth = window.Auth;
 
@@ -28,12 +29,9 @@
         );
 
         const prof = auth.getUser();
-
         if (!prof) return [];
 
-        return all.filter(
-          (b) => b.user_id === prof.id
-        );
+        return all.filter((b) => b.user_id === prof.id);
       }
 
       const user = auth.getUser();
@@ -47,11 +45,17 @@
         .eq("used_id", user.id)
         .order("Data", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro ao carregar marcações:", error);
+        throw error;
+      }
 
       return data || [];
     },
 
+    /* --------------------------------------------------------
+       PRÓXIMAS MARCAÇÕES
+       -------------------------------------------------------- */
     async upcoming() {
       const all = await Store.listAll();
 
@@ -59,21 +63,27 @@
 
       return all
         .filter((b) => {
-          const status = String(b.Status || "").toLowerCase();
+          const status = String(b["Status"] || "").toLowerCase();
 
           return (
             status === "confirmada" &&
-            String(b.Data) >= today
+            String(b["Data"] || "") >= today
           );
         })
         .sort((a, b) => {
-          const dateA = String(a.Data || "") + String(a.Hora || "");
-          const dateB = String(b.Data || "") + String(b.Hora || "");
+          const dateA = String(a["Data"] || "");
+          const dateB = String(b["Data"] || "");
 
-          return dateA.localeCompare(dateB);
+          const timeA = String(a["Hora"] || "");
+          const timeB = String(b["Hora"] || "");
+
+          return (dateA + timeA).localeCompare(dateB + timeB);
         });
     },
 
+    /* --------------------------------------------------------
+       BUSCAR POR ID
+       -------------------------------------------------------- */
     async byId(id) {
       const all = await Store.listAll();
 
@@ -84,16 +94,15 @@
       );
     },
 
-    /* ======================================================
+    /* --------------------------------------------------------
        CRIAR MARCAÇÃO
-       ====================================================== */
-
+       -------------------------------------------------------- */
     async create(payload) {
       const auth = window.Auth;
 
       const reference = genReference();
 
-      /* ---------- DEMO ---------- */
+      /* ================= DEMO ================= */
 
       if (auth.isDemo()) {
         const all = JSON.parse(
@@ -138,7 +147,7 @@
         return rec;
       }
 
-      /* ---------- SUPABASE ---------- */
+      /* ================= SUPABASE ================= */
 
       const user = auth.getUser();
 
@@ -146,62 +155,68 @@
         throw new Error("Utilizador não autenticado.");
       }
 
-      const record = {
-        used_id: user.id,
-
-        "Nome": payload.nome || "",
-
-        "E-mail":
-          payload.email ||
-          user.email ||
-          "",
-
-        "Serviço":
-          payload.service_name || "",
-
-        "Barbeiro":
-          payload.barber_name || "",
-
-        "Data":
-          payload.booking_date,
-
-        "Hora":
-          payload.booking_time,
-
-        "Status":
-          "confirmada",
-
-        reference,
-      };
-
-      console.log(
-        "Enviando marcação para Supabase:",
-        record
-      );
+      /*
+       * IMPORTANTE:
+       * A tua tabela chama-se "booking"
+       * e as colunas têm exatamente estes nomes.
+       */
 
       const { data, error } = await auth
         .getClient()
         .from("booking")
-        .insert([record])
+        .insert([
+          {
+            "Nome": payload.nome || "",
+            "E-mail": payload.email || user.email || "",
+            "Serviço": payload.service_name || "",
+            "Barbeiro": payload.barber_name || "",
+            "Data": payload.booking_date,
+            "Hora": payload.booking_time,
+            "Status": "confirmada",
+            "used_id": user.id,
+          },
+        ])
         .select()
         .single();
 
       if (error) {
         console.error(
-          "Erro Supabase ao criar marcação:",
+          "ERRO SUPABASE AO CRIAR MARCAÇÃO:",
           error
         );
 
         throw error;
       }
 
-      return data;
+      /*
+       * Converte o formato da tabela para o formato
+       * utilizado pelo resto do sistema.
+       */
+
+      return {
+        id: data.id,
+
+        user_id: data.used_id,
+
+        service_name: data["Serviço"],
+
+        barber_name: data["Barbeiro"],
+
+        booking_date: data["Data"],
+
+        booking_time: data["Hora"],
+
+        status: data["Status"],
+
+        reference: reference,
+
+        created_at: data.created_at,
+      };
     },
 
-    /* ======================================================
-       CANCELAR MARCAÇÃO
-       ====================================================== */
-
+    /* --------------------------------------------------------
+       CANCELAR
+       -------------------------------------------------------- */
     async cancel(id) {
       const auth = window.Auth;
 
@@ -252,19 +267,25 @@
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error(
+          "Erro ao cancelar marcação:",
+          error
+        );
+
+        throw error;
+      }
 
       return data;
     },
 
-    /* ======================================================
+    /* --------------------------------------------------------
        HORÁRIOS OCUPADOS
-       ====================================================== */
-
+       -------------------------------------------------------- */
     async getTakenSlots(dateISO) {
       const auth = window.Auth;
 
-      /* ---------- DEMO ---------- */
+      /* ================= DEMO ================= */
 
       if (auth.isDemo()) {
         const all = JSON.parse(
@@ -283,7 +304,7 @@
           }));
       }
 
-      /* ---------- SUPABASE ---------- */
+      /* ================= SUPABASE ================= */
 
       try {
         const { data, error } = await auth
@@ -303,9 +324,9 @@
 
         return (data || [])
           .filter((b) => {
-            const status =
-              String(b.Status || "")
-                .toLowerCase();
+            const status = String(
+              b["Status"] || ""
+            ).toLowerCase();
 
             return (
               status !== "cancelada" &&
@@ -313,20 +334,28 @@
             );
           })
           .map((b) => ({
-            booking_time: b.Hora,
-            barber_name: b.Barbeiro,
+            booking_time: b["Hora"],
+            barber_name: b["Barbeiro"],
           }));
 
       } catch (err) {
         console.warn(
           "Não foi possível consultar horários:",
-          err?.message
+          err
         );
 
+        /*
+         * Não quebra o calendário.
+         * Apenas assume que não existem horários ocupados.
+         */
         return [];
       }
     },
   };
+
+  /* ========================================================
+     REFERÊNCIA
+     ======================================================== */
 
   function genReference() {
     const chars =
@@ -335,12 +364,11 @@
     let r = "";
 
     for (let i = 0; i < 6; i++) {
-      r +=
-        chars[
-          Math.floor(
-            Math.random() * chars.length
-          )
-        ];
+      r += chars[
+        Math.floor(
+          Math.random() * chars.length
+        )
+      ];
     }
 
     const d = new Date();
@@ -394,6 +422,10 @@
     stepTitle,
     stepLabel;
 
+  /* ========================================================
+     ABRIR
+     ======================================================== */
+
   function open(opts = {}) {
     resetState();
 
@@ -416,28 +448,56 @@
 
     modal.classList.add("open");
 
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow =
+      "hidden";
 
     render();
   }
 
+  /* ========================================================
+     FECHAR
+     ======================================================== */
+
   function close() {
     modal.classList.remove("open");
 
-    document.body.style.overflow = "";
+    document.body.style.overflow =
+      "";
   }
+
+  /* ========================================================
+     RESET
+     ======================================================== */
 
   function resetState() {
     state.step = 0;
+
     state.service = null;
+
     state.barber = null;
+
     state.noBarberPref = true;
+
     state.date = null;
+
     state.time = null;
+
     state.taken = [];
+
     state.submitting = false;
+
     state.lastBooking = null;
+
+    state.nome = "";
+
+    state.telefone = "";
+
+    state.email = "";
   }
+
+  /* ========================================================
+     INIT
+     ======================================================== */
 
   function init() {
     modal =
@@ -519,10 +579,6 @@
 
         state.step--;
 
-        if (state.step === 4) {
-          refreshStepData();
-        }
-
         render();
       }
     );
@@ -549,6 +605,10 @@
     );
   }
 
+  /* ========================================================
+     RENDER
+     ======================================================== */
+
   function render() {
     const s = state.step;
 
@@ -558,14 +618,19 @@
     stepTitle.textContent =
       Steps[s];
 
-    dots.innerHTML = Steps.map(
-      (_, i) =>
-        `<span class="step-dot ${
-          i === s ? "active" : ""
-        } ${
-          i < s ? "done" : ""
-        }"></span>`
-    ).join("");
+    dots.innerHTML =
+      Steps.map(
+        (_, i) =>
+          `<span class="step-dot ${
+            i === s
+              ? "active"
+              : ""
+          } ${
+            i < s
+              ? "done"
+              : ""
+          }"></span>`
+      ).join("");
 
     body.innerHTML = "";
 
@@ -579,10 +644,25 @@
       stepSuccess,
     ];
 
-    renderers[s]();
+    try {
+      renderers[s]();
+    } catch (err) {
+      console.error(
+        "Erro ao carregar passo:",
+        err
+      );
+
+      body.innerHTML = `
+        <div class="b-loading">
+          <p>Não foi possível carregar este passo.</p>
+        </div>
+      `;
+    }
 
     foot.style.display =
-      s === 6 ? "none" : "flex";
+      s === 6
+        ? "none"
+        : "flex";
 
     backBtn.style.visibility =
       s === 0
@@ -590,31 +670,23 @@
         : "visible";
 
     if (s === 5) {
-      nextBtn.innerHTML = `
-        ${window.RGICONS.check}
-        <span>Confirmar marcação</span>
-      `;
-
-      nextBtn.classList.add(
-        "btn-gold"
-      );
+      nextBtn.innerHTML =
+        `${window.RGICONS.check}<span>Confirmar marcação</span>`;
 
       nextBtn.disabled =
         state.submitting;
-
     } else {
-      nextBtn.innerHTML = `
-        Continuar
-        ${window.RGICONS.arrowRight}
-      `;
+      nextBtn.innerHTML =
+        `Continuar ${window.RGICONS.arrowRight}`;
 
-      nextBtn.classList.add(
-        "btn-gold"
-      );
-
-      nextBtn.disabled = false;
+      nextBtn.disabled =
+        false;
     }
   }
+
+  /* ========================================================
+     NEXT
+     ======================================================== */
 
   async function onNext() {
     const s = state.step;
@@ -670,14 +742,18 @@
         );
       }
 
-      if (!state.nome.trim()) {
+      if (
+        !state.nome.trim()
+      ) {
         return window.showToast(
           "Indica o teu nome.",
           "error"
         );
       }
 
-      if (!state.telefone.trim()) {
+      if (
+        !state.telefone.trim()
+      ) {
         return window.showToast(
           "Indica o teu telefone.",
           "error"
@@ -686,7 +762,7 @@
     }
 
     if (s === 5) {
-      confirmBooking();
+      await confirmBooking();
       return;
     }
 
@@ -694,14 +770,14 @@
 
     if (state.step === 4) {
       await refreshStepData();
-
-      render();
-
-      return;
     }
 
     render();
   }
+
+  /* ========================================================
+     PERFIL
+     ======================================================== */
 
   async function refreshStepData() {
     const prof =
@@ -720,7 +796,7 @@
   }
 
   /* ========================================================
-     PASSO 1 — SERVIÇO
+     SERVIÇO
      ======================================================== */
 
   function stepService() {
@@ -743,10 +819,7 @@
             </span>
 
             <span class="so-meta">
-              <span>
-                ${s.duration} min
-              </span>
-
+              <span>${s.duration} min</span>
               <span class="so-price">
                 ${s.price}€
               </span>
@@ -789,20 +862,17 @@
   }
 
   /* ========================================================
-     PASSO 2 — BARBEIRO
+     BARBEIRO
      ======================================================== */
 
   function stepBarber() {
-    const anySelected =
-      state.noBarberPref;
-
     body.innerHTML = `
       <div class="barber-options">
 
         <button
           type="button"
           class="barber-opt ${
-            anySelected
+            state.noBarberPref
               ? "selected"
               : ""
           }"
@@ -827,13 +897,13 @@
           <button
             type="button"
             class="barber-opt ${
-              state.barber?.id ===
-              t.id
+              state.barber?.id === t.id
                 ? "selected"
                 : ""
             }"
             data-barber="${esc(t.id)}"
           >
+
             <span class="bo-avatar">
               ${
                 t.photo
@@ -853,6 +923,7 @@
             <span class="bo-spec">
               ${esc(t.specialty)}
             </span>
+
           </button>
         `
           )
@@ -873,8 +944,11 @@
               btn.dataset.barber ===
               "any"
             ) {
-              state.barber = null;
-              state.noBarberPref = true;
+              state.barber =
+                null;
+
+              state.noBarberPref =
+                true;
             } else {
               state.barber =
                 D.team.find(
@@ -903,28 +977,55 @@
   }
 
   /* ========================================================
-     PASSO 3 — DATA
+     DATA
+     Mostra o mês atual inteiro.
+     Dias passados ficam bloqueados.
+     O mês atualiza automaticamente.
      ======================================================== */
 
   function stepDate() {
     const days = [];
 
-    const now = new Date();
+    const now =
+      new Date();
 
-    /*
-      Mostra o mês atual e os meses seguintes
-      conforme bookingDaysAhead.
-    */
+    const year =
+      now.getFullYear();
+
+    const month =
+      now.getMonth();
+
+    const firstDay =
+      new Date(
+        year,
+        month,
+        1
+      );
+
+    const lastDay =
+      new Date(
+        year,
+        month + 1,
+        0
+      );
+
+    const todayISO =
+      RG.toISODate(now);
 
     for (
-      let i = 0;
-      i <
-      (D.bookingDaysAhead ||
-        30);
-      i++
+      let day = 1;
+      day <= lastDay.getDate();
+      day++
     ) {
       const d =
-        RG.addDays(now, i);
+        new Date(
+          year,
+          month,
+          day
+        );
+
+      const iso =
+        RG.toISODate(d);
 
       const dow =
         d.getDay();
@@ -935,11 +1036,14 @@
           []
         ).includes(dow);
 
+      const passed =
+        iso < todayISO;
+
       days.push({
-        date:
-          RG.toISODate(d),
+        date: iso,
         dow,
         closed,
+        passed,
       });
     }
 
@@ -972,53 +1076,72 @@
       <div class="date-options">
 
         ${days
-          .map((d) => {
-            const dt =
-              RG.parseISO(
-                d.date
-              );
+          .map(
+            (d) => {
+              const dt =
+                RG.parseISO(
+                  d.date
+                );
 
-            const sel =
-              state.date ===
-              d.date;
+              const disabled =
+                d.closed ||
+                d.passed;
 
-            return `
-              <button
-                type="button"
-                class="date-opt ${
-                  sel
-                    ? "selected"
-                    : ""
-                } ${
-                  d.closed
-                    ? "disabled"
-                    : ""
-                }"
-                data-date="${d.date}"
-                ${
-                  d.closed
-                    ? "disabled"
-                    : ""
-                }
-              >
-                <span class="dow">
-                  ${dowNames[d.dow]}
-                </span>
+              const selected =
+                state.date ===
+                d.date;
 
-                <span class="day">
-                  ${dt.getDate()}
-                </span>
-
-                <span class="mon">
+              return `
+                <button
+                  type="button"
+                  class="date-opt ${
+                    selected
+                      ? "selected"
+                      : ""
+                  } ${
+                    disabled
+                      ? "disabled"
+                      : ""
+                  }"
+                  data-date="${
+                    d.date
+                  }"
                   ${
-                    monNames[
-                      dt.getMonth()
-                    ]
+                    disabled
+                      ? "disabled"
+                      : ""
                   }
-                </span>
-              </button>
-            `;
-          })
+                >
+
+                  <span class="dow">
+                    ${
+                      dowNames[
+                        d.dow
+                      ]
+                    }
+                  </span>
+
+                  <span class="day">
+                    ${String(
+                      dt.getDate()
+                    ).padStart(
+                      2,
+                      "0"
+                    )}
+                  </span>
+
+                  <span class="mon">
+                    ${
+                      monNames[
+                        dt.getMonth()
+                      ]
+                    }
+                  </span>
+
+                </button>
+              `;
+            }
+          )
           .join("")}
 
       </div>
@@ -1031,13 +1154,14 @@
         "
       >
         ${window.RGICONS.info}
-        Os dias encerrados aparecem esbatidos.
+        Dias anteriores e dias encerrados
+        ficam bloqueados.
       </p>
     `;
 
     body
       .querySelectorAll(
-        ".date-opt:not(.disabled)"
+        ".date-opt:not([disabled])"
       )
       .forEach((btn) =>
         btn.addEventListener(
@@ -1046,7 +1170,8 @@
             state.date =
               btn.dataset.date;
 
-            state.time = null;
+            state.time =
+              null;
 
             body
               .querySelectorAll(
@@ -1064,13 +1189,12 @@
   }
 
   /* ========================================================
-     PASSO 4 — HORÁRIO
+     HORÁRIOS
      ======================================================== */
 
   async function stepTime() {
     if (!state.date) {
       state.step = 2;
-
       return render();
     }
 
@@ -1100,43 +1224,37 @@
     const slots =
       D.bookingSlots || [];
 
-    const normalizeTime =
-      (value) => {
-        if (!value)
-          return "";
-
-        return String(value)
-          .slice(0, 5);
-      };
-
     const timeTaken =
-      (t) => {
-        const normalized =
-          normalizeTime(t);
-
-        if (state.barber) {
-          return taken.some(
-            (x) =>
-              normalizeTime(
-                x.booking_time
-              ) === normalized &&
-              String(
-                x.barber_name || ""
-              ) ===
+      (t) =>
+        state.barber
+          ? taken.some(
+              (x) =>
                 String(
-                  state.barber
-                    .name
+                  x.booking_time
+                ).slice(
+                  0,
+                  5
+                ) ===
+                  String(t).slice(
+                    0,
+                    5
+                  ) &&
+                x.barber_name ===
+                  state.barber.name
+            )
+          : taken.some(
+              (x) =>
+                String(
+                  x.booking_time
+                ).slice(
+                  0,
+                  5
+                ) ===
+                String(t).slice(
+                  0,
+                  5
                 )
-          );
-        }
-
-        return taken.some(
-          (x) =>
-            normalizeTime(
-              x.booking_time
-            ) === normalized
-        );
-      };
+            );
 
     body.innerHTML = `
       <div class="slot-legend">
@@ -1173,7 +1291,9 @@
                       ? "disabled"
                       : ""
                   }"
-                  data-time="${esc(t)}"
+                  data-time="${esc(
+                    t
+                  )}"
                   ${
                     occupied
                       ? "disabled"
@@ -1192,7 +1312,7 @@
 
     body
       .querySelectorAll(
-        ".time-opt:not(.disabled)"
+        ".time-opt:not([disabled])"
       )
       .forEach((btn) =>
         btn.addEventListener(
@@ -1217,7 +1337,7 @@
   }
 
   /* ========================================================
-     PASSO 5 — DADOS
+     DADOS
      ======================================================== */
 
   function stepData() {
@@ -1303,6 +1423,7 @@
         </div>
 
         <div class="field full">
+
           <label for="bkEmail">
             Email
           </label>
@@ -1319,6 +1440,7 @@
           <span class="hint">
             O email vem da tua conta Google.
           </span>
+
         </div>
 
       </div>
@@ -1350,7 +1472,7 @@
   }
 
   /* ========================================================
-     PASSO 6 — RESUMO
+     RESUMO
      ======================================================== */
 
   function stepSummary() {
@@ -1402,17 +1524,17 @@
           </span>
 
           <span class="v">
-            ${dt
-              .getDate()
-              .toString()
-              .padStart(2, "0")}/${(
+            ${String(
+              dt.getDate()
+            ).padStart(
+              2,
+              "0"
+            )}/${String(
               dt.getMonth() + 1
-            )
-              .toString()
-              .padStart(
-                2,
-                "0"
-              )}/${dt.getFullYear()}
+            ).padStart(
+              2,
+              "0"
+            )}/${dt.getFullYear()}
           </span>
         </div>
 
@@ -1446,7 +1568,9 @@
           </span>
 
           <span class="v">
-            ${state.service.price}€
+            ${
+              state.service.price
+            }€
           </span>
         </div>
 
@@ -1455,23 +1579,32 @@
   }
 
   /* ========================================================
-     PASSO 7 — CONFIRMAÇÃO
+     SUCESSO
      ======================================================== */
 
   function stepSuccess() {
     const bk =
       state.lastBooking;
 
-    const b =
-      bk["Barbeiro"] ||
-      "—";
+    if (!bk) {
+      body.innerHTML = `
+        <div class="b-loading">
+          <p>
+            Marcação não encontrada.
+          </p>
+        </div>
+      `;
 
-    const dateValue =
-      bk["Data"];
+      return;
+    }
+
+    const b =
+      bk.barber_name ||
+      "—";
 
     const dt =
       RG.parseISO(
-        String(dateValue)
+        bk.booking_date
       );
 
     body.innerHTML = `
@@ -1487,7 +1620,7 @@
         </h3>
 
         <p>
-          Obrigado! A tua marcação foi registada.
+          Obrigado!
           Vemo-nos na barbearia.
         </p>
 
@@ -1500,7 +1633,7 @@
 
             <span class="v">
               ${esc(
-                bk["Serviço"]
+                bk.service_name
               )}
             </span>
           </div>
@@ -1521,20 +1654,17 @@
             </span>
 
             <span class="v">
-              ${dt
-                .getDate()
-                .toString()
-                .padStart(
-                  2,
-                  "0"
-                )}/${(
+              ${String(
+                dt.getDate()
+              ).padStart(
+                2,
+                "0"
+              )}/${String(
                 dt.getMonth() + 1
-              )
-                .toString()
-                .padStart(
-                  2,
-                  "0"
-                )}/${dt.getFullYear()}
+              ).padStart(
+                2,
+                "0"
+              )}/${dt.getFullYear()}
             </span>
           </div>
 
@@ -1545,7 +1675,7 @@
 
             <span class="v">
               ${esc(
-                bk["Hora"]
+                bk.booking_time
               )}
             </span>
           </div>
@@ -1556,7 +1686,7 @@
           Referência ·
           ${esc(
             bk.reference ||
-              "—"
+            "RG"
           )}
         </span>
 
@@ -1570,7 +1700,9 @@
             class="btn btn-gold"
             id="goBookings"
           >
-            ${window.RGICONS.calendar}
+            ${
+              window.RGICONS.calendar
+            }
             Ver minhas marcações
           </button>
 
@@ -1619,9 +1751,11 @@
     if (state.submitting)
       return;
 
-    state.submitting = true;
+    state.submitting =
+      true;
 
-    nextBtn.disabled = true;
+    nextBtn.disabled =
+      true;
 
     nextBtn.innerHTML = `
       <span
@@ -1643,7 +1777,9 @@
         ? state.barber.name
         : "Sem preferência";
 
-    /* ---------- VERIFICAÇÃO FINAL ---------- */
+    /* ---------------------------------------------
+       VERIFICAÇÃO FINAL
+       --------------------------------------------- */
 
     try {
       const taken =
@@ -1651,37 +1787,38 @@
           state.date
         );
 
-      const normalizeTime =
-        (value) =>
-          String(
-            value || ""
-          ).slice(0, 5);
-
       const clash =
         state.barber
           ? taken.some(
               (x) =>
-                normalizeTime(
-                  x.booking_time
-                ) ===
-                  normalizeTime(
-                    state.time
-                  ) &&
                 String(
-                  x.barber_name ||
-                    ""
+                  x.booking_time
+                ).slice(
+                  0,
+                  5
                 ) ===
                   String(
-                    barberName
-                  )
+                    state.time
+                  ).slice(
+                    0,
+                    5
+                  ) &&
+                x.barber_name ===
+                  barberName
             )
           : taken.some(
               (x) =>
-                normalizeTime(
+                String(
                   x.booking_time
+                ).slice(
+                  0,
+                  5
                 ) ===
-                normalizeTime(
+                String(
                   state.time
+                ).slice(
+                  0,
+                  5
                 )
             );
 
@@ -1708,9 +1845,14 @@
       );
     }
 
-    /* ---------- CRIAR ---------- */
+    /* ---------------------------------------------
+       CRIAR MARCAÇÃO
+       --------------------------------------------- */
 
     try {
+      const user =
+        window.Auth.getUser();
+
       const booking =
         await Store.create({
           nome:
@@ -1732,7 +1874,9 @@
             state.time,
         });
 
-      /* ---------- ATUALIZAR PERFIL ---------- */
+      /* ---------------------------------------------
+         ATUALIZAR PERFIL
+         --------------------------------------------- */
 
       try {
         await window.Auth.updateProfile(
@@ -1751,6 +1895,10 @@
         );
       }
 
+      /* ---------------------------------------------
+         NORMALIZAR RESPOSTA
+         --------------------------------------------- */
+
       state.lastBooking =
         booking;
 
@@ -1767,12 +1915,16 @@
       render();
 
     } catch (err) {
+
       console.error(
         "CREATE BOOKING ERROR:",
         err
       );
 
       state.submitting =
+        false;
+
+      nextBtn.disabled =
         false;
 
       window.showToast(
@@ -1785,7 +1937,7 @@
   }
 
   /* ========================================================
-     ESCAPE
+     ESC
      ======================================================== */
 
   function esc(s) {
@@ -1818,4 +1970,6 @@
     "DOMContentLoaded",
     init
   );
+
 })();
+```
