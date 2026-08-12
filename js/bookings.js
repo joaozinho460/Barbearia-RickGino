@@ -18,16 +18,17 @@
       const auth = window.Auth;
 
       if (auth.isDemo()) {
-        const all = JSON.parse(localStorage.getItem("rg_bookings") || "[]");
-        const prof = auth.getUser();
+        const all = JSON.parse(
+          localStorage.getItem("rg_bookings") || "[]"
+        );
 
+        const prof = auth.getUser();
         if (!prof) return [];
 
         return all.filter((b) => b.user_id === prof.id);
       }
 
       const user = auth.getUser();
-
       if (!user) return [];
 
       const { data, error } = await auth
@@ -81,13 +82,19 @@
           id:
             "bk_" +
             Math.random().toString(36).slice(2, 12),
+
           user_id: auth.getUser().id,
+
           service_name: payload.service_name,
           barber_name: payload.barber_name,
+
           booking_date: payload.booking_date,
           booking_time: payload.booking_time,
+
           status: "confirmed",
+
           reference,
+
           created_at: now,
           updated_at: now,
         };
@@ -126,6 +133,7 @@
       return data;
     },
 
+    /* Cancelar: nunca apaga. Apenas muda o estado. */
     async cancel(id) {
       const auth = window.Auth;
 
@@ -143,7 +151,8 @@
         }
 
         all[idx].status = "cancelled";
-        all[idx].updated_at = new Date().toISOString();
+        all[idx].updated_at =
+          new Date().toISOString();
 
         localStorage.setItem(
           "rg_bookings",
@@ -169,6 +178,7 @@
       return data;
     },
 
+    /* Horários ocupados */
     async getTakenSlots(dateISO) {
       const auth = window.Auth;
 
@@ -201,7 +211,7 @@
         return data || [];
       } catch (err) {
         console.warn(
-          "get_taken_slots indisponível (usa fallback vazio):",
+          "get_taken_slots indisponível:",
           err?.message
         );
 
@@ -217,13 +227,16 @@
     let r = "";
 
     for (let i = 0; i < 6; i++) {
-      r +=
-        chars[Math.floor(Math.random() * chars.length)];
+      r += chars[
+        Math.floor(Math.random() * chars.length)
+      ];
     }
 
     const d = new Date();
 
-    return `RG${String(d.getFullYear()).slice(2)}${String(
+    return `RG${String(
+      d.getFullYear()
+    ).slice(2)}${String(
       d.getMonth() + 1
     ).padStart(2, "0")}${String(
       d.getDate()
@@ -233,7 +246,7 @@
   window.BookingsStore = Store;
 
   /* ========================================================
-     WIZARD DE MARCAÇÃO
+     WIZARD
      ======================================================== */
 
   const Steps = [
@@ -248,15 +261,20 @@
 
   const state = {
     step: 0,
+
     service: null,
     barber: null,
     noBarberPref: true,
+
     date: null,
     time: null,
+
     nome: "",
     telefone: "",
     email: "",
+
     taken: [],
+
     submitting: false,
     lastBooking: null,
   };
@@ -290,6 +308,7 @@
     }
 
     modal.classList.add("open");
+
     document.body.style.overflow = "hidden";
 
     render();
@@ -302,30 +321,50 @@
 
   function resetState() {
     state.step = 0;
+
     state.service = null;
     state.barber = null;
     state.noBarberPref = true;
+
     state.date = null;
     state.time = null;
+
     state.taken = [];
+
     state.submitting = false;
     state.lastBooking = null;
   }
 
   function init() {
-    modal = document.getElementById("bookingModal");
+    modal =
+      document.getElementById("bookingModal");
 
     if (!modal) return;
 
-    body = document.getElementById("bookingStep");
-    dots = document.getElementById("bookingDots");
-    foot = document.getElementById("bookingFoot");
-    backBtn = document.getElementById("bookingBack");
-    nextBtn = document.getElementById("bookingNext");
+    body =
+      document.getElementById("bookingStep");
+
+    dots =
+      document.getElementById("bookingDots");
+
+    foot =
+      document.getElementById("bookingFoot");
+
+    backBtn =
+      document.getElementById("bookingBack");
+
+    nextBtn =
+      document.getElementById("bookingNext");
+
     stepLabel =
-      document.getElementById("bookingStepLabel");
+      document.getElementById(
+        "bookingStepLabel"
+      );
+
     stepTitle =
-      document.getElementById("bookingStepTitle");
+      document.getElementById(
+        "bookingStepTitle"
+      );
 
     document
       .getElementById("bookingClose")
@@ -411,13 +450,16 @@
       `;
 
       nextBtn.classList.add("btn-gold");
-      nextBtn.disabled = state.submitting;
+
+      nextBtn.disabled =
+        state.submitting;
     } else {
       nextBtn.innerHTML = `
         Continuar ${window.RGICONS.arrowRight}
       `;
 
       nextBtn.classList.add("btn-gold");
+
       nextBtn.disabled = false;
     }
   }
@@ -502,12 +544,16 @@
 
     if (prof) {
       state.nome = prof.nome || "";
-      state.telefone = prof.telefone || "";
-      state.email = prof.email || "";
+      state.telefone =
+        prof.telefone || "";
+      state.email =
+        prof.email || "";
     }
   }
 
-  /* ---------- Passo 1: Serviço ---------- */
+  /* ========================================================
+     PASSO 1 — SERVIÇO
+     ======================================================== */
 
   function stepService() {
     body.innerHTML = `
@@ -515,27 +561,27 @@
         ${D.services
           .map(
             (s) => `
-          <button
-            type="button"
-            class="service-opt ${
-              state.service?.id === s.id
-                ? "selected"
-                : ""
-            }"
-            data-svc="${esc(s.id)}"
-          >
-            <span class="so-name">
-              ${esc(s.name)}
-            </span>
+              <button
+                type="button"
+                class="service-opt ${
+                  state.service?.id === s.id
+                    ? "selected"
+                    : ""
+                }"
+                data-svc="${esc(s.id)}"
+              >
+                <span class="so-name">
+                  ${esc(s.name)}
+                </span>
 
-            <span class="so-meta">
-              <span>${s.duration} min</span>
-              <span class="so-price">
-                ${s.price}€
-              </span>
-            </span>
-          </button>
-        `
+                <span class="so-meta">
+                  <span>${s.duration} min</span>
+                  <span class="so-price">
+                    ${s.price}€
+                  </span>
+                </span>
+              </button>
+            `
           )
           .join("")}
       </div>
@@ -544,25 +590,33 @@
     body
       .querySelectorAll(".service-opt")
       .forEach((btn) =>
-        btn.addEventListener("click", () => {
-          state.service =
-            D.services.find(
-              (s) => s.id === btn.dataset.svc
-            );
+        btn.addEventListener(
+          "click",
+          () => {
+            state.service =
+              D.services.find(
+                (s) =>
+                  s.id === btn.dataset.svc
+              );
 
-          body
-            .querySelectorAll(".service-opt")
-            .forEach((b) =>
-              b.classList.toggle(
-                "selected",
-                b === btn
+            body
+              .querySelectorAll(
+                ".service-opt"
               )
-            );
-        })
+              .forEach((b) =>
+                b.classList.toggle(
+                  "selected",
+                  b === btn
+                )
+              );
+          }
+        )
       );
   }
 
-  /* ---------- Passo 2: Barbeiro ---------- */
+  /* ========================================================
+     PASSO 2 — BARBEIRO
+     ======================================================== */
 
   function stepBarber() {
     const anySelected =
@@ -594,130 +648,152 @@
         ${D.team
           .map(
             (t) => `
-          <button
-            type="button"
-            class="barber-opt ${
-              state.barber?.id === t.id
-                ? "selected"
-                : ""
-            }"
-            data-barber="${esc(t.id)}"
-          >
-            <span class="bo-avatar">
-              ${
-                t.photo
-                  ? `<img src="${esc(
-                      t.photo
-                    )}" alt="">`
-                  : window.RG.initials(t.name)
-              }
-            </span>
+              <button
+                type="button"
+                class="barber-opt ${
+                  state.barber?.id === t.id
+                    ? "selected"
+                    : ""
+                }"
+                data-barber="${esc(t.id)}"
+              >
+                <span class="bo-avatar">
+                  ${
+                    t.photo
+                      ? `<img src="${esc(
+                          t.photo
+                        )}" alt="">`
+                      : window.RG.initials(
+                          t.name
+                        )
+                  }
+                </span>
 
-            <span class="bo-name">
-              ${esc(t.name)}
-            </span>
+                <span class="bo-name">
+                  ${esc(t.name)}
+                </span>
 
-            <span class="bo-spec">
-              ${esc(t.specialty)}
-            </span>
-          </button>
-        `
+                <span class="bo-spec">
+                  ${esc(t.specialty)}
+                </span>
+              </button>
+            `
           )
           .join("")}
-
       </div>
     `;
 
     body
       .querySelectorAll(".barber-opt")
       .forEach((btn) =>
-        btn.addEventListener("click", () => {
-          if (
-            btn.dataset.barber === "any"
-          ) {
-            state.barber = null;
-            state.noBarberPref = true;
-          } else {
-            state.barber =
-              D.team.find(
-                (t) =>
-                  t.id ===
-                  btn.dataset.barber
-              );
+        btn.addEventListener(
+          "click",
+          () => {
+            if (
+              btn.dataset.barber === "any"
+            ) {
+              state.barber = null;
+              state.noBarberPref = true;
+            } else {
+              state.barber =
+                D.team.find(
+                  (t) =>
+                    t.id ===
+                    btn.dataset.barber
+                );
 
-            state.noBarberPref = false;
-          }
+              state.noBarberPref = false;
+            }
 
-          body
-            .querySelectorAll(".barber-opt")
-            .forEach((b) =>
-              b.classList.toggle(
-                "selected",
-                b === btn
+            body
+              .querySelectorAll(
+                ".barber-opt"
               )
-            );
-        })
+              .forEach((b) =>
+                b.classList.toggle(
+                  "selected",
+                  b === btn
+                )
+              );
+          }
+        )
       );
   }
 
   /* ========================================================
-     PASSO 3: DATA
+     PASSO 3 — DATA
      
      CORREÇÃO:
-     - começa no dia 1 do mês atual;
-     - dias anteriores ficam bloqueados;
-     - continua automaticamente para o mês seguinte;
-     - quando mudar o mês, o cálculo usa automaticamente
-       a nova data do sistema.
+     - começa o calendário no dia 1 do mês
+     - dias anteriores a hoje ficam bloqueados
+     - mostra o mês atual
+     - continua automaticamente para o próximo mês
+     - nunca começa simplesmente no dia 12
      ======================================================== */
 
   function stepDate() {
     const days = [];
 
-    const now = new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    // Data de hoje sem horas
-    const today = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
+    /*
+      Quantos dias mostrar no total.
+      Se bookingDaysAhead estiver configurado,
+      usamos esse valor.
+      Caso contrário, usamos 60 dias.
+    */
+    const totalDays =
+      D.bookingDaysAhead || 60;
 
-    // Começamos sempre no dia 1 do mês atual
-    const start = new Date(
-      now.getFullYear(),
-      now.getMonth(),
+    /*
+      Começa no primeiro dia do mês atual.
+      Assim o calendário nunca começa no dia 12,
+      13, 14 etc.
+    */
+    const firstDayOfMonth = new Date(
+      today.getFullYear(),
+      today.getMonth(),
       1
     );
 
-    // Quantidade de dias que o sistema deve mostrar
-    const totalDays =
-      D.bookingDaysAhead || 30;
+    for (
+      let i = 0;
+      i < totalDays;
+      i++
+    ) {
+      const d = new Date(
+        firstDayOfMonth
+      );
 
-    for (let i = 0; i < totalDays; i++) {
-      const d = new Date(start);
+      d.setDate(
+        firstDayOfMonth.getDate() + i
+      );
 
-      // Isto faz o calendário atravessar
-      // automaticamente o fim do mês.
-      d.setDate(start.getDate() + i);
+      d.setHours(0, 0, 0, 0);
 
-      const dateISO = RG.toISODate(d);
+      const dateISO =
+        RG.toISODate(d);
 
       const dow = d.getDay();
 
-      // Dia da semana encerrado pela barbearia
       const closed =
-        (D.bookingClosedWeekdays || []).includes(
-          dow
-        );
+        (
+          D.bookingClosedWeekdays ||
+          []
+        ).includes(dow);
 
-      // Dia que já passou
-      const isPast = d < today;
+      /*
+        Datas anteriores a hoje ficam
+        desativadas.
+      */
+      const past = d < today;
 
       days.push({
         date: dateISO,
         dow,
-        closed: closed || isPast,
+        closed,
+        past,
       });
     }
 
@@ -746,66 +822,144 @@
       "Dez",
     ];
 
+    /*
+      Agrupa os dias por mês.
+      Assim conseguimos mostrar claramente:
+
+      AGOSTO 2026
+      1 2 3 4 ...
+      ...
+
+      SETEMBRO 2026
+      1 2 3 ...
+    */
+    const months = {};
+
+    days.forEach((d) => {
+      const dt = RG.parseISO(d.date);
+
+      const key =
+        `${dt.getFullYear()}-${dt.getMonth()}`;
+
+      if (!months[key]) {
+        months[key] = {
+          year: dt.getFullYear(),
+          month: dt.getMonth(),
+          days: [],
+        };
+      }
+
+      months[key].days.push(d);
+    });
+
     body.innerHTML = `
-      <div class="date-options">
-        ${days
-          .map((d) => {
-            const dt =
-              RG.parseISO(d.date);
+      <div class="date-calendar">
 
-            const sel =
-              state.date === d.date;
-
+        ${Object.values(months)
+          .map((month) => {
             return `
-              <button
-                type="button"
-                class="date-opt ${
-                  sel ? "selected" : ""
-                } ${
-                  d.closed ? "disabled" : ""
-                }"
-                data-date="${d.date}"
-                ${
-                  d.closed
-                    ? "disabled"
-                    : ""
-                }
-              >
-                <span class="dow">
-                  ${dowNames[d.dow]}
-                </span>
+              <div class="date-month">
 
-                <span class="day">
-                  ${dt.getDate()}
-                </span>
+                <div class="date-month-title">
+                  ${monNames[month.month]}
+                  ${month.year}
+                </div>
 
-                <span class="mon">
-                  ${monNames[dt.getMonth()]}
-                </span>
-              </button>
+                <div class="date-options">
+
+                  ${month.days
+                    .map((d) => {
+                      const dt =
+                        RG.parseISO(
+                          d.date
+                        );
+
+                      const selected =
+                        state.date ===
+                        d.date;
+
+                      const disabled =
+                        d.closed ||
+                        d.past;
+
+                      return `
+                        <button
+                          type="button"
+                          class="date-opt ${
+                            selected
+                              ? "selected"
+                              : ""
+                          } ${
+                            disabled
+                              ? "disabled"
+                              : ""
+                          }"
+                          data-date="${esc(
+                            d.date
+                          )}"
+                          ${
+                            disabled
+                              ? "disabled"
+                              : ""
+                          }
+                        >
+
+                          <span class="dow">
+                            ${
+                              dowNames[
+                                d.dow
+                              ]
+                            }
+                          </span>
+
+                          <span class="day">
+                            ${dt.getDate()}
+                          </span>
+
+                          <span class="mon">
+                            ${
+                              monNames[
+                                dt.getMonth()
+                              ]
+                            }
+                          </span>
+
+                        </button>
+                      `;
+                    })
+                    .join("")}
+
+                </div>
+
+              </div>
             `;
           })
           .join("")}
+
       </div>
 
       <p
         style="
           color:var(--muted);
           font-size:.8rem;
-          margin-top:14px
+          margin-top:14px;
         "
       >
         ${window.RGICONS.info}
-        Os dias anteriores e os dias encerrados
-        aparecem indisponíveis.
+        Os dias encerrados e os dias anteriores
+        a hoje aparecem desativados.
       </p>
     `;
 
+    /*
+      Só adiciona clique aos dias realmente
+      disponíveis.
+    */
     body
       .querySelectorAll(
         ".date-opt:not(.disabled)"
       )
-      .forEach((btn) =>
+      .forEach((btn) => {
         btn.addEventListener(
           "click",
           () => {
@@ -825,11 +979,13 @@
                 )
               );
           }
-        )
-      );
+        );
+      });
   }
 
-  /* ---------- Passo 4: Horário ---------- */
+  /* ========================================================
+     PASSO 4 — HORÁRIO
+     ======================================================== */
 
   async function stepTime() {
     if (!state.date) {
@@ -856,7 +1012,8 @@
       console.warn(err);
     }
 
-    const taken = state.taken || [];
+    const taken =
+      state.taken || [];
 
     const slots =
       D.bookingSlots || [];
@@ -876,42 +1033,48 @@
 
     body.innerHTML = `
       <div class="slot-legend">
+
         <span class="lg-free">
-          <i></i>Disponível
+          <i></i>
+          Disponível
         </span>
 
         <span class="lg-taken">
-          <i></i>Ocupado
+          <i></i>
+          Ocupado
         </span>
+
       </div>
 
       <div class="time-options">
+
         ${slots
           .map(
             (t) => `
-          <button
-            type="button"
-            class="time-opt ${
-              state.time === t
-                ? "selected"
-                : ""
-            } ${
-              timeTaken(t)
-                ? "disabled"
-                : ""
-            }"
-            data-time="${t}"
-            ${
-              timeTaken(t)
-                ? "disabled"
-                : ""
-            }
-          >
-            ${t}
-          </button>
-        `
+              <button
+                type="button"
+                class="time-opt ${
+                  state.time === t
+                    ? "selected"
+                    : ""
+                } ${
+                  timeTaken(t)
+                    ? "disabled"
+                    : ""
+                }"
+                data-time="${esc(t)}"
+                ${
+                  timeTaken(t)
+                    ? "disabled"
+                    : ""
+                }
+              >
+                ${esc(t)}
+              </button>
+            `
           )
           .join("")}
+
       </div>
     `;
 
@@ -939,7 +1102,9 @@
       );
   }
 
-  /* ---------- Passo 5: Dados pessoais ---------- */
+  /* ========================================================
+     PASSO 5 — DADOS
+     ======================================================== */
 
   function stepData() {
     const logged =
@@ -948,6 +1113,7 @@
     if (!logged) {
       body.innerHTML = `
         <div class="b-auth-required">
+
           <span class="auth-ic">
             ${window.RGICONS.user}
           </span>
@@ -965,6 +1131,7 @@
             ${window.RGICONS.google}
             Continuar com Google
           </button>
+
         </div>
       `;
 
@@ -1016,6 +1183,7 @@
         </div>
 
         <div class="field full">
+
           <label for="bkEmail">
             Email
           </label>
@@ -1030,6 +1198,7 @@
           <span class="hint">
             O email vem da tua conta Google.
           </span>
+
         </div>
 
       </div>
@@ -1056,7 +1225,9 @@
     );
   }
 
-  /* ---------- Passo 6: Resumo ---------- */
+  /* ========================================================
+     PASSO 6 — RESUMO
+     ======================================================== */
 
   function stepSummary() {
     const dt =
@@ -1071,10 +1242,7 @@
       <div class="b-summary">
 
         <div class="sum-row">
-          <span class="k">
-            Serviço
-          </span>
-
+          <span class="k">Serviço</span>
           <span class="v">
             ${esc(state.service.name)}
             <span class="sub">
@@ -1084,20 +1252,14 @@
         </div>
 
         <div class="sum-row">
-          <span class="k">
-            Barbeiro
-          </span>
-
+          <span class="k">Barbeiro</span>
           <span class="v">
             ${esc(b.name)}
           </span>
         </div>
 
         <div class="sum-row">
-          <span class="k">
-            Data
-          </span>
-
+          <span class="k">Data</span>
           <span class="v">
             ${dt
               .getDate()
@@ -1111,30 +1273,21 @@
         </div>
 
         <div class="sum-row">
-          <span class="k">
-            Hora
-          </span>
-
+          <span class="k">Hora</span>
           <span class="v">
             ${esc(state.time)}
           </span>
         </div>
 
         <div class="sum-row">
-          <span class="k">
-            Nome
-          </span>
-
+          <span class="k">Nome</span>
           <span class="v">
             ${esc(state.nome)}
           </span>
         </div>
 
         <div class="sum-row sum-total">
-          <span class="k">
-            Total
-          </span>
-
+          <span class="k">Total</span>
           <span class="v">
             ${state.service.price}€
           </span>
@@ -1144,7 +1297,9 @@
     `;
   }
 
-  /* ---------- Passo 7: Confirmação ---------- */
+  /* ========================================================
+     PASSO 7 — CONFIRMAÇÃO
+     ======================================================== */
 
   function stepSuccess() {
     const bk =
@@ -1166,8 +1321,7 @@
         </span>
 
         <h3>
-          Marcação
-          <em>confirmada</em>
+          Marcação <em>confirmada</em>
         </h3>
 
         <p>
@@ -1178,30 +1332,21 @@
         <div class="b-summary suc-card">
 
           <div class="sum-row">
-            <span class="k">
-              Serviço
-            </span>
-
+            <span class="k">Serviço</span>
             <span class="v">
               ${esc(bk.service_name)}
             </span>
           </div>
 
           <div class="sum-row">
-            <span class="k">
-              Barbeiro
-            </span>
-
+            <span class="k">Barbeiro</span>
             <span class="v">
               ${esc(b)}
             </span>
           </div>
 
           <div class="sum-row">
-            <span class="k">
-              Data
-            </span>
-
+            <span class="k">Data</span>
             <span class="v">
               ${dt
                 .getDate()
@@ -1215,10 +1360,7 @@
           </div>
 
           <div class="sum-row">
-            <span class="k">
-              Hora
-            </span>
-
+            <span class="k">Hora</span>
             <span class="v">
               ${esc(bk.booking_time)}
             </span>
@@ -1227,14 +1369,14 @@
         </div>
 
         <span class="suc-ref">
-          Referência ·
-          ${esc(bk.reference)}
+          Referência · ${esc(bk.reference)}
         </span>
 
         <div
           class="suc-actions"
           style="margin-top:22px"
         >
+
           <button
             type="button"
             class="btn btn-gold"
@@ -1251,6 +1393,7 @@
           >
             Fechar
           </button>
+
         </div>
 
       </div>
@@ -1276,7 +1419,9 @@
       );
   }
 
-  /* ---------- Confirmação da marcação ---------- */
+  /* ========================================================
+     CONFIRMAÇÃO DA MARCAÇÃO
+     ======================================================== */
 
   async function confirmBooking() {
     if (state.submitting) return;
@@ -1339,7 +1484,10 @@
         return render();
       }
     } catch (err) {
-      /* sem verificação */
+      console.warn(
+        "Não foi possível verificar disponibilidade:",
+        err
+      );
     }
 
     try {
@@ -1347,10 +1495,13 @@
         await Store.create({
           service_name:
             state.service.name,
+
           barber_name:
             barberName,
+
           booking_date:
             state.date,
+
           booking_time:
             state.time,
         });
@@ -1362,6 +1513,7 @@
         await window.Auth.updateProfile({
           nome:
             state.nome.trim(),
+
           telefone:
             state.telefone.trim(),
         });
@@ -1369,7 +1521,7 @@
         void prof;
       } catch (err) {
         console.warn(
-          "Update profile falhou (não bloqueia a marcação):",
+          "Update profile falhou:",
           err?.message
         );
       }
@@ -1402,7 +1554,9 @@
     }
   }
 
-  /* ---------- esc helper local ---------- */
+  /* ========================================================
+     ESC HELPER
+     ======================================================== */
 
   function esc(s) {
     return String(s ?? "").replace(
@@ -1414,11 +1568,13 @@
           ">": "&gt;",
           '"': "&quot;",
           "'": "&#039;",
-        })[c]
+        }[c])
     );
   }
 
-  /* ---------- Exposição ---------- */
+  /* ========================================================
+     EXPOSIÇÃO
+     ======================================================== */
 
   window.BookingFlow = {
     open,
