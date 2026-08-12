@@ -23,25 +23,19 @@
         );
 
         const prof = auth.getUser();
-
         if (!prof) return [];
 
-        return all.filter(
-          (b) => b.user_id === prof.id
-        );
+        return all.filter((b) => b.user_id === prof.id);
       }
 
       const user = auth.getUser();
-
       if (!user) return [];
 
       const { data, error } = await auth
         .getClient()
         .from("bookings")
         .select("*")
-        .order("booking_date", {
-          ascending: false,
-        });
+        .order("booking_date", { ascending: false });
 
       if (error) throw error;
 
@@ -50,7 +44,6 @@
 
     async upcoming() {
       const all = await Store.listAll();
-
       const today = RG.toISODate(new Date());
 
       return all
@@ -60,12 +53,8 @@
             String(b.booking_date) >= today
         )
         .sort((a, b) =>
-          (
-            a.booking_date +
-            a.booking_time
-          ).localeCompare(
-            b.booking_date +
-              b.booking_time
+          (a.booking_date + a.booking_time).localeCompare(
+            b.booking_date + b.booking_time
           )
         );
     },
@@ -74,10 +63,7 @@
       const all = await Store.listAll();
 
       return (
-        all.find(
-          (b) =>
-            String(b.id) === String(id)
-        ) || null
+        all.find((b) => String(b.id) === String(id)) || null
       );
     },
 
@@ -87,42 +73,29 @@
 
       if (auth.isDemo()) {
         const all = JSON.parse(
-          localStorage.getItem(
-            "rg_bookings"
-          ) || "[]"
+          localStorage.getItem("rg_bookings") || "[]"
         );
 
-        const now =
-          new Date().toISOString();
+        const now = new Date().toISOString();
 
         const rec = {
           id:
             "bk_" +
-            Math.random()
-              .toString(36)
-              .slice(2, 12),
+            Math.random().toString(36).slice(2, 12),
 
-          user_id:
-            auth.getUser().id,
+          user_id: auth.getUser().id,
 
-          service_name:
-            payload.service_name,
+          service_name: payload.service_name,
+          barber_name: payload.barber_name,
 
-          barber_name:
-            payload.barber_name,
-
-          booking_date:
-            payload.booking_date,
-
-          booking_time:
-            payload.booking_time,
+          booking_date: payload.booking_date,
+          booking_time: payload.booking_time,
 
           status: "confirmed",
 
           reference,
 
           created_at: now,
-
           updated_at: now,
         };
 
@@ -136,68 +109,49 @@
         return rec;
       }
 
-      const user =
-        auth.getUser();
+      const user = auth.getUser();
 
-      const { data, error } =
-        await auth
-          .getClient()
-          .from("bookings")
-          .insert([
-            {
-              user_id: user.id,
-
-              service_name:
-                payload.service_name,
-
-              barber_name:
-                payload.barber_name,
-
-              booking_date:
-                payload.booking_date,
-
-              booking_time:
-                payload.booking_time,
-
-              status: "confirmed",
-
-              reference,
-            },
-          ])
-          .select()
-          .single();
+      const { data, error } = await auth
+        .getClient()
+        .from("bookings")
+        .insert([
+          {
+            user_id: user.id,
+            service_name: payload.service_name,
+            barber_name: payload.barber_name,
+            booking_date: payload.booking_date,
+            booking_time: payload.booking_time,
+            status: "confirmed",
+            reference,
+          },
+        ])
+        .select()
+        .single();
 
       if (error) throw error;
 
       return data;
     },
 
+    /* Nunca apaga uma marcação.
+       Apenas altera o estado para cancelled. */
     async cancel(id) {
       const auth = window.Auth;
 
       if (auth.isDemo()) {
         const all = JSON.parse(
-          localStorage.getItem(
-            "rg_bookings"
-          ) || "[]"
+          localStorage.getItem("rg_bookings") || "[]"
         );
 
-        const idx =
-          all.findIndex(
-            (b) =>
-              String(b.id) ===
-              String(id)
-          );
+        const idx = all.findIndex(
+          (b) => String(b.id) === String(id)
+        );
 
         if (idx === -1) {
-          throw new Error(
-            "Marcação não encontrada."
-          );
+          throw new Error("Marcação não encontrada.");
         }
 
-        all[idx].status =
-          "cancelled";
-
+        all[idx].status = "cancelled";
         all[idx].updated_at =
           new Date().toISOString();
 
@@ -209,62 +163,49 @@
         return all[idx];
       }
 
-      const { data, error } =
-        await auth
-          .getClient()
-          .from("bookings")
-          .update({
-            status: "cancelled",
-            updated_at:
-              new Date().toISOString(),
-          })
-          .eq("id", id)
-          .select()
-          .single();
+      const { data, error } = await auth
+        .getClient()
+        .from("bookings")
+        .update({
+          status: "cancelled",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
 
       if (error) throw error;
 
       return data;
     },
 
+    /* Horários ocupados */
     async getTakenSlots(dateISO) {
       const auth = window.Auth;
 
       if (auth.isDemo()) {
         const all = JSON.parse(
-          localStorage.getItem(
-            "rg_bookings"
-          ) || "[]"
+          localStorage.getItem("rg_bookings") || "[]"
         );
 
         return all
           .filter(
             (b) =>
-              b.status !==
-                "cancelled" &&
-              String(
-                b.booking_date
-              ) === dateISO
+              b.status !== "cancelled" &&
+              String(b.booking_date) === dateISO
           )
           .map((b) => ({
-            booking_time:
-              b.booking_time,
-
-            barber_name:
-              b.barber_name,
+            booking_time: b.booking_time,
+            barber_name: b.barber_name,
           }));
       }
 
       try {
-        const { data, error } =
-          await auth
-            .getClient()
-            .rpc(
-              "get_taken_slots",
-              {
-                p_date: dateISO,
-              }
-            );
+        const { data, error } = await auth
+          .getClient()
+          .rpc("get_taken_slots", {
+            p_date: dateISO,
+          });
 
         if (error) throw error;
 
@@ -289,22 +230,21 @@
     for (let i = 0; i < 6; i++) {
       r +=
         chars[
-          Math.floor(
-            Math.random() *
-              chars.length
-          )
+          Math.floor(Math.random() * chars.length)
         ];
     }
 
     const d = new Date();
 
-    return `RG${String(
-      d.getFullYear()
-    ).slice(2)}${String(
-      d.getMonth() + 1
-    ).padStart(2, "0")}${String(
-      d.getDate()
-    ).padStart(2, "0")}-${r}`;
+    return `RG${String(d.getFullYear()).slice(
+      2
+    )}${String(d.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}${String(d.getDate()).padStart(
+      2,
+      "0"
+    )}-${r}`;
   }
 
   window.BookingsStore = Store;
@@ -327,19 +267,14 @@
     step: 0,
 
     service: null,
-
     barber: null,
-
     noBarberPref: true,
 
     date: null,
-
     time: null,
 
     nome: "",
-
     telefone: "",
-
     email: "",
 
     taken: [],
@@ -364,54 +299,49 @@
     if (opts.serviceId) {
       state.service =
         D.services.find(
-          (s) =>
-            s.id ===
-            opts.serviceId
+          (s) => s.id === opts.serviceId
         ) || null;
     }
 
     if (opts.barberId) {
       state.barber =
         D.team.find(
-          (t) =>
-            t.id ===
-            opts.barberId
+          (t) => t.id === opts.barberId
         ) || null;
 
-      state.noBarberPref =
-        !state.barber;
+      state.noBarberPref = !state.barber;
     }
 
-    modal.classList.add(
-      "open"
-    );
+    if (!modal) {
+      console.error(
+        "bookingModal não encontrado."
+      );
+      return;
+    }
 
-    document.body.style.overflow =
-      "hidden";
+    modal.classList.add("open");
+
+    document.body.style.overflow = "hidden";
 
     render();
   }
 
   function close() {
-    modal.classList.remove(
-      "open"
-    );
+    if (!modal) return;
 
-    document.body.style.overflow =
-      "";
+    modal.classList.remove("open");
+
+    document.body.style.overflow = "";
   }
 
   function resetState() {
     state.step = 0;
 
     state.service = null;
-
     state.barber = null;
-
     state.noBarberPref = true;
 
     state.date = null;
-
     state.time = null;
 
     state.taken = [];
@@ -465,9 +395,7 @@
       );
 
     document
-      .getElementById(
-        "bookingClose"
-      )
+      .getElementById("bookingClose")
       ?.addEventListener(
         "click",
         close
@@ -476,9 +404,7 @@
     modal.addEventListener(
       "click",
       (e) => {
-        if (
-          e.target === modal
-        ) {
+        if (e.target === modal) {
           close();
         }
       }
@@ -489,22 +415,23 @@
       (e) => {
         if (
           e.key === "Escape" &&
-          modal.classList.contains(
-            "open"
-          )
+          modal.classList.contains("open")
         ) {
           close();
         }
       }
     );
 
-    backBtn.addEventListener(
+    backBtn?.addEventListener(
       "click",
       () => {
-        if (state.step === 6)
-          return;
+        if (state.step === 6) return;
 
         state.step--;
+
+        if (state.step < 0) {
+          state.step = 0;
+        }
 
         if (state.step === 4) {
           refreshStepData();
@@ -514,17 +441,19 @@
       }
     );
 
-    nextBtn.addEventListener(
+    nextBtn?.addEventListener(
       "click",
       onNext
     );
 
-    window.Auth.setOnAuthChange(
-      () => {
+    if (
+      window.Auth &&
+      typeof window.Auth.setOnAuthChange ===
+        "function"
+    ) {
+      window.Auth.setOnAuthChange(() => {
         if (
-          modal.classList.contains(
-            "open"
-          )
+          modal.classList.contains("open")
         ) {
           if (state.step === 4) {
             refreshStepData();
@@ -532,11 +461,27 @@
 
           render();
         }
-      }
-    );
+      });
+    }
   }
 
+  /* ========================================================
+     RENDER
+     ======================================================== */
+
   function render() {
+    if (
+      !body ||
+      !stepLabel ||
+      !stepTitle ||
+      !dots ||
+      !foot ||
+      !backBtn ||
+      !nextBtn
+    ) {
+      return;
+    }
+
     const s = state.step;
 
     stepLabel.textContent =
@@ -545,19 +490,14 @@
     stepTitle.textContent =
       Steps[s];
 
-    dots.innerHTML =
-      Steps.map(
-        (_, i) =>
-          `<span class="step-dot ${
-            i === s
-              ? "active"
-              : ""
-          } ${
-            i < s
-              ? "done"
-              : ""
-          }"></span>`
-      ).join("");
+    dots.innerHTML = Steps.map(
+      (_, i) =>
+        `<span class="step-dot ${
+          i === s ? "active" : ""
+        } ${
+          i < s ? "done" : ""
+        }"></span>`
+    ).join("");
 
     body.innerHTML = "";
 
@@ -571,24 +511,36 @@
       stepSuccess,
     ];
 
-    renderers[s]();
+    try {
+      renderers[s]();
+    } catch (err) {
+      console.error(
+        "Erro ao renderizar passo:",
+        err
+      );
+
+      body.innerHTML = `
+        <div class="b-auth-required">
+          <span class="auth-ic">
+            ${window.RGICONS?.info || ""}
+          </span>
+          <p>
+            Não foi possível carregar este passo.
+          </p>
+        </div>
+      `;
+    }
 
     foot.style.display =
-      s === 6
-        ? "none"
-        : "flex";
+      s === 6 ? "none" : "flex";
 
     backBtn.style.visibility =
-      s === 0
-        ? "hidden"
-        : "visible";
+      s === 0 ? "hidden" : "visible";
 
     if (s === 5) {
       nextBtn.innerHTML = `
         ${window.RGICONS.check}
-        <span>
-          Confirmar marcação
-        </span>
+        <span>Confirmar marcação</span>
       `;
 
       nextBtn.classList.add(
@@ -611,6 +563,10 @@
     }
   }
 
+  /* ========================================================
+     NEXT
+     ======================================================== */
+
   async function onNext() {
     const s = state.step;
 
@@ -630,7 +586,7 @@
       !state.barber
     ) {
       return window.showToast(
-        'Escolhe um barbeiro (ou "Sem preferência").',
+        'Escolhe um barbeiro ou "Sem preferência".',
         "info"
       );
     }
@@ -672,9 +628,7 @@
         );
       }
 
-      if (
-        !state.telefone.trim()
-      ) {
+      if (!state.telefone.trim()) {
         return window.showToast(
           "Indica o teu telefone.",
           "error"
@@ -691,28 +645,31 @@
 
     if (state.step === 4) {
       await refreshStepData();
-
-      render();
-
-      return;
     }
 
     render();
   }
 
   async function refreshStepData() {
-    const prof =
-      await window.Auth.getProfile();
+    try {
+      const prof =
+        await window.Auth.getProfile();
 
-    if (prof) {
-      state.nome =
-        prof.nome || "";
+      if (prof) {
+        state.nome =
+          prof.nome || "";
 
-      state.telefone =
-        prof.telefone || "";
+        state.telefone =
+          prof.telefone || "";
 
-      state.email =
-        prof.email || "";
+        state.email =
+          prof.email || "";
+      }
+    } catch (err) {
+      console.warn(
+        "Não foi possível carregar perfil:",
+        err
+      );
     }
   }
 
@@ -721,44 +678,42 @@
      ======================================================== */
 
   function stepService() {
+    const services =
+      Array.isArray(D.services)
+        ? D.services
+        : [];
+
     body.innerHTML = `
       <div class="service-options">
-
-        ${D.services
+        ${services
           .map(
             (s) => `
           <button
             type="button"
             class="service-opt ${
-              state.service?.id ===
-              s.id
+              state.service?.id === s.id
                 ? "selected"
                 : ""
             }"
-            data-svc="${esc(
-              s.id
-            )}"
+            data-svc="${esc(s.id)}"
           >
-
             <span class="so-name">
               ${esc(s.name)}
             </span>
 
             <span class="so-meta">
               <span>
-                ${s.duration} min
+                ${esc(s.duration)} min
               </span>
 
               <span class="so-price">
-                ${s.price}€
+                ${esc(s.price)}€
               </span>
             </span>
-
           </button>
         `
           )
           .join("")}
-
       </div>
     `;
 
@@ -766,16 +721,18 @@
       .querySelectorAll(
         ".service-opt"
       )
-      .forEach((btn) =>
+      .forEach((btn) => {
         btn.addEventListener(
           "click",
           () => {
             state.service =
-              D.services.find(
+              services.find(
                 (s) =>
-                  s.id ===
-                  btn.dataset.svc
-              );
+                  String(s.id) ===
+                  String(
+                    btn.dataset.svc
+                  )
+              ) || null;
 
             body
               .querySelectorAll(
@@ -788,8 +745,8 @@
                 )
               );
           }
-        )
-      );
+        );
+      });
   }
 
   /* ========================================================
@@ -797,6 +754,11 @@
      ======================================================== */
 
   function stepBarber() {
+    const team =
+      Array.isArray(D.team)
+        ? D.team
+        : [];
+
     const anySelected =
       state.noBarberPref;
 
@@ -812,7 +774,6 @@
           }"
           data-barber="any"
         >
-
           <span class="bo-avatar">
             ${window.RGICONS.scissors}
           </span>
@@ -824,25 +785,20 @@
           <span class="badge-any">
             Primeiro disponível
           </span>
-
         </button>
 
-        ${D.team
+        ${team
           .map(
             (t) => `
           <button
             type="button"
             class="barber-opt ${
-              state.barber?.id ===
-              t.id
+              state.barber?.id === t.id
                 ? "selected"
                 : ""
             }"
-            data-barber="${esc(
-              t.id
-            )}"
+            data-barber="${esc(t.id)}"
           >
-
             <span class="bo-avatar">
               ${
                 t.photo
@@ -860,11 +816,8 @@
             </span>
 
             <span class="bo-spec">
-              ${esc(
-                t.specialty
-              )}
+              ${esc(t.specialty)}
             </span>
-
           </button>
         `
           )
@@ -877,7 +830,7 @@
       .querySelectorAll(
         ".barber-opt"
       )
-      .forEach((btn) =>
+      .forEach((btn) => {
         btn.addEventListener(
           "click",
           () => {
@@ -885,19 +838,17 @@
               btn.dataset.barber ===
               "any"
             ) {
-              state.barber =
-                null;
-
-              state.noBarberPref =
-                true;
+              state.barber = null;
+              state.noBarberPref = true;
             } else {
               state.barber =
-                D.team.find(
+                team.find(
                   (t) =>
-                    t.id ===
-                    btn.dataset
-                      .barber
-                );
+                    String(t.id) ===
+                    String(
+                      btn.dataset.barber
+                    )
+                ) || null;
 
               state.noBarberPref =
                 false;
@@ -914,22 +865,19 @@
                 )
               );
           }
-        )
-      );
+        );
+      });
   }
 
   /* ========================================================
      PASSO 3 — DATA
      
-     IMPORTANTE:
-     Esta é a única parte alterada.
-     
-     - Mostra TODOS os dias do mês atual.
-     - Começa sempre no dia 1.
-     - Dias anteriores ficam bloqueados.
-     - Domingo/fechados continuam bloqueados.
-     - O mês/ano são automáticos.
-     - Não depende de RG.parseISO().
+     CORREÇÃO:
+     - mostra o mês inteiro
+     - começa no dia 1
+     - dias passados ficam bloqueados
+     - dias encerrados ficam bloqueados
+     - mês é calculado automaticamente pela data atual
      ======================================================== */
 
   function stepDate() {
@@ -941,19 +889,70 @@
     const month =
       now.getMonth();
 
-    const todayStart =
+    // Primeiro dia do mês
+    const firstDay =
       new Date(
         year,
         month,
-        now.getDate()
+        1
       );
 
-    const daysInMonth =
+    // Último dia do mês
+    const lastDay =
       new Date(
         year,
         month + 1,
         0
-      ).getDate();
+      );
+
+    const totalDays =
+      lastDay.getDate();
+
+    const todayISO =
+      RG.toISODate(now);
+
+    const days = [];
+
+    for (
+      let day = 1;
+      day <= totalDays;
+      day++
+    ) {
+      const d =
+        new Date(
+          year,
+          month,
+          day
+        );
+
+      const dateISO =
+        RG.toISODate(d);
+
+      const dow =
+        d.getDay();
+
+      const closed =
+        (
+          D.bookingClosedWeekdays ||
+          []
+        ).includes(dow);
+
+      // Dias anteriores a hoje
+      const past =
+        dateISO < todayISO;
+
+      // Data não disponível
+      const disabled =
+        past || closed;
+
+      days.push({
+        date: dateISO,
+        dow,
+        closed,
+        past,
+        disabled,
+      });
+    }
 
     const dowNames = [
       "Dom",
@@ -965,7 +964,7 @@
       "Sáb",
     ];
 
-    const monthNames = [
+    const monNames = [
       "Janeiro",
       "Fevereiro",
       "Março",
@@ -980,174 +979,112 @@
       "Dezembro",
     ];
 
-    let html = "";
+    body.innerHTML = `
+      <div class="booking-calendar">
 
-    /*
-      Cabeçalho do mês atual
-    */
+        <div class="calendar-header">
+          <h3>
+            ${monNames[month]}
+            ${year}
+          </h3>
+        </div>
 
-    html += `
-      <div
-        class="booking-month-header"
-        style="
-          text-align:center;
-          margin-bottom:18px;
-        "
-      >
-        <h3
-          style="
-            margin:0;
-            font-size:1.15rem;
-            font-weight:700;
-          "
-        >
-          ${monthNames[month]}
-          ${year}
-        </h3>
+        <div class="calendar-weekdays">
+          ${dowNames
+            .map(
+              (name) =>
+                `<span>${name}</span>`
+            )
+            .join("")}
+        </div>
+
+        <div class="date-options">
+
+          ${days
+            .map((d) => {
+              const dt =
+                RG.parseISO(
+                  d.date
+                );
+
+              const selected =
+                state.date ===
+                d.date;
+
+              let classes =
+                "date-opt";
+
+              if (selected) {
+                classes +=
+                  " selected";
+              }
+
+              if (d.disabled) {
+                classes +=
+                  " disabled";
+              }
+
+              return `
+                <button
+                  type="button"
+                  class="${classes}"
+                  data-date="${d.date}"
+                  ${
+                    d.disabled
+                      ? "disabled"
+                      : ""
+                  }
+                >
+                  <span class="dow">
+                    ${
+                      dowNames[
+                        d.dow
+                      ]
+                    }
+                  </span>
+
+                  <span class="day">
+                    ${String(
+                      dt.getDate()
+                    ).padStart(
+                      2,
+                      "0"
+                    )}
+                  </span>
+
+                  <span class="mon">
+                    ${monNames[
+                      month
+                    ].slice(
+                      0,
+                      3
+                    )}
+                  </span>
+                </button>
+              `;
+            })
+            .join("")}
+
+        </div>
+
+        <div class="calendar-legend">
+          <span>
+            <i class="legend-free"></i>
+            Disponível
+          </span>
+
+          <span>
+            <i class="legend-disabled"></i>
+            Indisponível
+          </span>
+        </div>
+
       </div>
     `;
-
-    /*
-      Calendário completo
-    */
-
-    html += `
-      <div class="date-options">
-    `;
-
-    for (
-      let day = 1;
-      day <= daysInMonth;
-      day++
-    ) {
-      const date =
-        new Date(
-          year,
-          month,
-          day
-        );
-
-      const dow =
-        date.getDay();
-
-      /*
-        YYYY-MM-DD manualmente.
-        Não depende de nenhuma função
-        externa do projeto.
-      */
-
-      const dateISO =
-        year +
-        "-" +
-        String(
-          month + 1
-        ).padStart(2, "0") +
-        "-" +
-        String(day).padStart(
-          2,
-          "0"
-        );
-
-      /*
-        Dias que já passaram
-      */
-
-      const isPast =
-        date < todayStart;
-
-      /*
-        Dias fechados configurados
-        no SITE_DATA.
-      */
-
-      const closed =
-        Array.isArray(
-          D.bookingClosedWeekdays
-        ) &&
-        D.bookingClosedWeekdays.includes(
-          dow
-        );
-
-      const disabled =
-        isPast || closed;
-
-      const selected =
-        state.date === dateISO;
-
-      html += `
-        <button
-          type="button"
-          class="date-opt ${
-            selected
-              ? "selected"
-              : ""
-          } ${
-            disabled
-              ? "disabled"
-              : ""
-          } ${
-            isPast
-              ? "past"
-              : ""
-          }"
-          data-date="${dateISO}"
-          ${
-            disabled
-              ? "disabled"
-              : ""
-          }
-        >
-
-          <span class="dow">
-            ${dowNames[dow]}
-          </span>
-
-          <span class="day">
-            ${day}
-          </span>
-
-          <span class="mon">
-            ${monthNames[
-              month
-            ].substring(0, 3)}
-          </span>
-
-        </button>
-      `;
-    }
-
-    html += `
-      </div>
-
-      <p
-        style="
-          color:var(--muted);
-          font-size:.8rem;
-          margin-top:14px;
-        "
-      >
-        ${
-          window.RGICONS.info
-        }
-        Os dias que já passaram
-        e os dias encerrados
-        ficam bloqueados.
-      </p>
-    `;
-
-    /*
-      Coloca tudo no ecrã.
-    */
-
-    body.innerHTML = html;
-
-    /*
-      Seleção da data.
-    */
 
     body
       .querySelectorAll(
-        ".date-opt:not(:disabled)"
+        ".date-opt:not([disabled])"
       )
       .forEach((btn) => {
         btn.addEventListener(
@@ -1180,17 +1117,14 @@
   async function stepTime() {
     if (!state.date) {
       state.step = 2;
-
       return render();
     }
 
     body.innerHTML = `
       <div class="b-loading">
         <div class="spinner"></div>
-
         <p>
-          A consultar disponibilidade
-          no Supabase…
+          A consultar disponibilidade...
         </p>
       </div>
     `;
@@ -1203,33 +1137,48 @@
     } catch (err) {
       state.taken = [];
 
-      console.warn(err);
+      console.warn(
+        "Erro ao consultar horários:",
+        err
+      );
     }
 
     const taken =
       state.taken || [];
 
     const slots =
-      D.bookingSlots || [];
+      Array.isArray(
+        D.bookingSlots
+      )
+        ? D.bookingSlots
+        : [];
 
-    const timeTaken = (t) =>
-      state.barber
-        ? taken.some(
-            (x) =>
-              x.booking_time ===
-                t &&
-              x.barber_name ===
+    const timeTaken = (t) => {
+      if (state.barber) {
+        return taken.some(
+          (x) =>
+            String(
+              x.booking_time
+            ) === String(t) &&
+            String(
+              x.barber_name
+            ) ===
+              String(
                 state.barber.name
-          )
-        : taken.some(
-            (x) =>
-              x.booking_time ===
-              t
-          );
+              )
+        );
+      }
+
+      return taken.some(
+        (x) =>
+          String(
+            x.booking_time
+          ) === String(t)
+      );
+    };
 
     body.innerHTML = `
       <div class="slot-legend">
-
         <span class="lg-free">
           <i></i>
           Disponível
@@ -1239,46 +1188,64 @@
           <i></i>
           Ocupado
         </span>
-
       </div>
 
       <div class="time-options">
 
-        ${slots
-          .map(
-            (t) => `
-          <button
-            type="button"
-            class="time-opt ${
-              state.time === t
-                ? "selected"
-                : ""
-            } ${
-              timeTaken(t)
-                ? "disabled"
-                : ""
-            }"
-            data-time="${t}"
-            ${
-              timeTaken(t)
-                ? "disabled"
-                : ""
-            }
-          >
-            ${t}
-          </button>
-        `
-          )
-          .join("")}
+        ${
+          slots.length
+            ? slots
+                .map(
+                  (t) => {
+                    const occupied =
+                      timeTaken(t);
+
+                    return `
+                      <button
+                        type="button"
+                        class="time-opt ${
+                          state.time ===
+                          t
+                            ? "selected"
+                            : ""
+                        } ${
+                          occupied
+                            ? "disabled"
+                            : ""
+                        }"
+                        data-time="${esc(
+                          t
+                        )}"
+                        ${
+                          occupied
+                            ? "disabled"
+                            : ""
+                        }
+                      >
+                        ${esc(t)}
+                      </button>
+                    `;
+                  }
+                )
+                .join("")
+            : `
+              <div class="b-auth-required">
+                <p>
+                  Não existem horários
+                  configurados.
+                </p>
+              </div>
+            `
+        }
 
       </div>
     `;
 
     body
       .querySelectorAll(
-        ".time-opt"
+        ".time-opt:not([disabled])"
       )
-      .forEach((btn) =>
+      .forEach((btn) => {
         btn.addEventListener(
           "click",
           () => {
@@ -1296,12 +1263,12 @@
                 )
               );
           }
-        )
-      );
+        );
+      });
   }
 
   /* ========================================================
-     PASSO 5 — DADOS PESSOAIS
+     PASSO 5 — DADOS
      ======================================================== */
 
   function stepData() {
@@ -1337,7 +1304,7 @@
         .querySelector(
           "#bLoginGoogle"
         )
-        .addEventListener(
+        ?.addEventListener(
           "click",
           () =>
             window.Auth
@@ -1387,7 +1354,6 @@
         </div>
 
         <div class="field full">
-
           <label for="bkEmail">
             Email
           </label>
@@ -1404,7 +1370,6 @@
           <span class="hint">
             O email vem da tua conta Google.
           </span>
-
         </div>
 
       </div>
@@ -1420,14 +1385,14 @@
         "#bkTel"
       );
 
-    iNome.addEventListener(
+    iNome?.addEventListener(
       "input",
       () =>
         (state.nome =
           iNome.value)
     );
 
-    iTel.addEventListener(
+    iTel?.addEventListener(
       "input",
       () =>
         (state.telefone =
@@ -1440,13 +1405,82 @@
      ======================================================== */
 
   function stepSummary() {
-    const dt =
-      RG.parseISO(state.date);
+    /*
+      Proteção para o resumo não ficar vazio
+      caso algum estado tenha sido perdido.
+    */
+
+    if (!state.service) {
+      body.innerHTML = `
+        <div class="b-auth-required">
+          <p>
+            O serviço selecionado não foi encontrado.
+            Volta atrás e escolhe novamente.
+          </p>
+        </div>
+      `;
+
+      return;
+    }
+
+    if (!state.date) {
+      body.innerHTML = `
+        <div class="b-auth-required">
+          <p>
+            A data da marcação não foi selecionada.
+            Volta atrás e escolhe uma data.
+          </p>
+        </div>
+      `;
+
+      return;
+    }
+
+    if (!state.time) {
+      body.innerHTML = `
+        <div class="b-auth-required">
+          <p>
+            O horário não foi selecionado.
+            Volta atrás e escolhe um horário.
+          </p>
+        </div>
+      `;
+
+      return;
+    }
+
+    let dt;
+
+    try {
+      dt = RG.parseISO(
+        state.date
+      );
+    } catch {
+      dt = new Date(
+        state.date
+      );
+    }
 
     const b =
       state.barber || {
         name: "Sem preferência",
       };
+
+    const dateText =
+      dt &&
+      !isNaN(dt.getTime())
+        ? `${String(
+            dt.getDate()
+          ).padStart(
+            2,
+            "0"
+          )}/${String(
+            dt.getMonth() + 1
+          ).padStart(
+            2,
+            "0"
+          )}/${dt.getFullYear()}`
+        : state.date;
 
     body.innerHTML = `
       <div class="b-summary">
@@ -1462,10 +1496,9 @@
             )}
 
             <span class="sub">
-              ${
-                state.service
-                  .duration
-              } min
+              ${esc(
+                state.service.duration
+              )} min
             </span>
           </span>
         </div>
@@ -1486,17 +1519,7 @@
           </span>
 
           <span class="v">
-            ${dt
-              .getDate()
-              .toString()
-              .padStart(2, "0")}/${(
-              dt.getMonth() + 1
-            )
-              .toString()
-              .padStart(
-                2,
-                "0"
-              )}/${dt.getFullYear()}
+            ${esc(dateText)}
           </span>
         </div>
 
@@ -1516,7 +1539,7 @@
           </span>
 
           <span class="v">
-            ${esc(state.nome)}
+            ${esc(state.nome || "—")}
           </span>
         </div>
 
@@ -1526,7 +1549,9 @@
           </span>
 
           <span class="v">
-            ${state.service.price}€
+            ${esc(
+              state.service.price
+            )}€
           </span>
         </div>
 
@@ -1535,20 +1560,55 @@
   }
 
   /* ========================================================
-     PASSO 7 — CONFIRMAÇÃO
+     PASSO 7 — CONFIRMADO
      ======================================================== */
 
   function stepSuccess() {
     const bk =
       state.lastBooking;
 
+    if (!bk) {
+      body.innerHTML = `
+        <div class="b-auth-required">
+          <p>
+            A marcação não foi encontrada.
+          </p>
+        </div>
+      `;
+
+      return;
+    }
+
     const b =
       bk.barber_name || "—";
 
-    const dt =
-      RG.parseISO(
+    let dt;
+
+    try {
+      dt = RG.parseISO(
         bk.booking_date
       );
+    } catch {
+      dt = new Date(
+        bk.booking_date
+      );
+    }
+
+    const dateText =
+      dt &&
+      !isNaN(dt.getTime())
+        ? `${String(
+            dt.getDate()
+          ).padStart(
+            2,
+            "0"
+          )}/${String(
+            dt.getMonth() + 1
+          ).padStart(
+            2,
+            "0"
+          )}/${dt.getFullYear()}`
+        : bk.booking_date;
 
     body.innerHTML = `
       <div class="b-success">
@@ -1563,8 +1623,7 @@
         </h3>
 
         <p>
-          Obrigado! Enviámos-te
-          a confirmação.
+          Obrigado! Enviámos-te a confirmação.
           Vemo-nos na barbearia.
         </p>
 
@@ -1598,20 +1657,7 @@
             </span>
 
             <span class="v">
-              ${dt
-                .getDate()
-                .toString()
-                .padStart(
-                  2,
-                  "0"
-                )}/${(
-                dt.getMonth() + 1
-              )
-                .toString()
-                .padStart(
-                  2,
-                  "0"
-                )}/${dt.getFullYear()}
+              ${esc(dateText)}
             </span>
           </div>
 
@@ -1667,7 +1713,7 @@
       .querySelector(
         "#goBookings"
       )
-      .addEventListener(
+      ?.addEventListener(
         "click",
         () => {
           close();
@@ -1681,14 +1727,14 @@
       .querySelector(
         "#closeBooking"
       )
-      .addEventListener(
+      ?.addEventListener(
         "click",
         close
       );
   }
 
   /* ========================================================
-     CONFIRMAÇÃO DA MARCAÇÃO
+     CONFIRMAR MARCAÇÃO
      ======================================================== */
 
   async function confirmBooking() {
@@ -1719,6 +1765,7 @@
         ? state.barber.name
         : "Sem preferência";
 
+    /* Verificação final */
     try {
       const taken =
         await Store.getTakenSlots(
@@ -1729,15 +1776,27 @@
         state.barber
           ? taken.some(
               (x) =>
-                x.booking_time ===
-                  state.time &&
-                x.barber_name ===
-                  barberName
+                String(
+                  x.booking_time
+                ) ===
+                  String(
+                    state.time
+                  ) &&
+                String(
+                  x.barber_name
+                ) ===
+                  String(
+                    barberName
+                  )
             )
           : taken.some(
               (x) =>
-                x.booking_time ===
-                state.time
+                String(
+                  x.booking_time
+                ) ===
+                String(
+                  state.time
+                )
             );
 
       if (clash) {
@@ -1755,7 +1814,10 @@
         return render();
       }
     } catch (err) {
-      /* fallback */
+      console.warn(
+        "Não foi possível verificar disponibilidade:",
+        err
+      );
     }
 
     try {
@@ -1774,21 +1836,15 @@
             state.time,
         });
 
+      /* Atualiza perfil */
       try {
-        const prof =
-          await window.Auth.getProfile();
+        await window.Auth.updateProfile({
+          nome:
+            state.nome.trim(),
 
-        await window.Auth.updateProfile(
-          {
-            nome:
-              state.nome.trim(),
-
-            telefone:
-              state.telefone.trim(),
-          }
-        );
-
-        void prof;
+          telefone:
+            state.telefone.trim(),
+        });
       } catch (err) {
         console.warn(
           "Update profile falhou:",
@@ -1798,6 +1854,8 @@
 
       state.lastBooking =
         booking;
+
+      state.submitting = false;
 
       state.step = 6;
 
@@ -1825,7 +1883,7 @@
   }
 
   /* ========================================================
-     ESC
+     ESCAPE
      ======================================================== */
 
   function esc(s) {
