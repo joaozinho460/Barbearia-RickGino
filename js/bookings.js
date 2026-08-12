@@ -6,19 +6,6 @@
 
   /* ============================================================
      BOOKINGS STORE
-     Compatível com:
-     public.booking
-     
-     id
-     created_at
-     Nome
-     E-mail
-     Serviço
-     Barbeiro
-     Data
-     Hora
-     Status
-     used_id
      ============================================================ */
 
   const Store = {
@@ -109,7 +96,7 @@
         );
       }
 
-      /* ---------------- DEMO ---------------- */
+      /* DEMO */
 
       if (auth.isDemo()) {
         const all = JSON.parse(
@@ -147,7 +134,7 @@
         return rec;
       }
 
-      /* ---------------- SUPABASE ---------------- */
+      /* SUPABASE */
 
       const insertData = {
         "Nome": payload.nome || "",
@@ -165,21 +152,12 @@
         insertData
       );
 
-      console.log(
-        "Utilizador autenticado:",
-        user.id
-      );
-
-      /*
-       * IMPORTANTE:
-       * Não usamos .select().single() depois do INSERT.
-       * Assim a criação não depende da policy SELECT.
-       */
-
-      const { error } = await auth
+      const { data, error } = await auth
         .getClient()
         .from("booking")
-        .insert(insertData);
+        .insert(insertData)
+        .select()
+        .single();
 
       if (error) {
         console.error(
@@ -187,29 +165,10 @@
           error
         );
 
-        throw new Error(
-          error.message ||
-          "Erro ao criar a marcação."
-        );
+        throw error;
       }
 
-      /*
-       * Devolvemos os dados que acabámos de inserir.
-       */
-
-      return {
-        id: null,
-        created_at: new Date().toISOString(),
-
-        Nome: insertData["Nome"],
-        "E-mail": insertData["E-mail"],
-        "Serviço": insertData["Serviço"],
-        "Barbeiro": insertData["Barbeiro"],
-        "Data": insertData["Data"],
-        "Hora": insertData["Hora"],
-        "Status": insertData["Status"],
-        "used_id": insertData["used_id"]
-      };
+      return data;
     },
 
     /* ============================================================
@@ -1025,42 +984,103 @@
 
   /* ============================================================
      STEP 3 — DATA
-     NÃO ALTERADO
+     CORRIGIDO:
+     - Começa sempre no dia 1 do mês atual
+     - Mostra TODOS os dias do mês
+     - Datas passadas ficam bloqueadas
+     - Hoje continua disponível
+     - Mês/ano atualizam automaticamente
      ============================================================ */
 
   function stepDate() {
+
+    const now = new Date();
+
+    const currentYear =
+      now.getFullYear();
+
+    const currentMonth =
+      now.getMonth();
+
+    /* Primeiro dia do mês */
+    const firstDay =
+      new Date(
+        currentYear,
+        currentMonth,
+        1
+      );
+
+    /* Último dia do mês */
+    const lastDay =
+      new Date(
+        currentYear,
+        currentMonth + 1,
+        0
+      );
+
     const days = [];
 
-    const now =
-      new Date();
-
+    /*
+     * Gera o mês inteiro.
+     * Exemplo:
+     * Agosto -> 01 até 31
+     */
     for (
-      let i = 0;
-      i <
-      (D.bookingDaysAhead ||
-        14);
-      i++
+      let day = 1;
+      day <= lastDay.getDate();
+      day++
     ) {
+
       const d =
-        RG.addDays(
-          now,
-          i
+        new Date(
+          currentYear,
+          currentMonth,
+          day
         );
+
+      const dateISO =
+        `${d.getFullYear()}-${String(
+          d.getMonth() + 1
+        ).padStart(2, "0")}-${String(
+          d.getDate()
+        ).padStart(2, "0")}`;
 
       const dow =
         d.getDay();
 
-      const closed =
+      const closedWeekday =
         (
           D.bookingClosedWeekdays ||
           []
         ).includes(dow);
 
+      /*
+       * Data de hoje em formato ISO.
+       */
+      const todayISO =
+        `${now.getFullYear()}-${String(
+          now.getMonth() + 1
+        ).padStart(2, "0")}-${String(
+          now.getDate()
+        ).padStart(2, "0")}`;
+
+      /*
+       * Datas anteriores a hoje ficam bloqueadas.
+       */
+      const past =
+        dateISO < todayISO;
+
+      /*
+       * Dia fechado pela barbearia.
+       */
+      const closed =
+        closedWeekday || past;
+
       days.push({
-        date:
-          RG.toISODate(d),
+        date: dateISO,
         dow,
-        closed
+        closed,
+        past
       });
     }
 
@@ -1075,28 +1095,50 @@
     ];
 
     const monNames = [
-      "Jan",
-      "Fev",
-      "Mar",
-      "Abr",
-      "Mai",
-      "Jun",
-      "Jul",
-      "Ago",
-      "Set",
-      "Out",
-      "Nov",
-      "Dez"
+      "Janeiro",
+      "Fevereiro",
+      "Março",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro"
     ];
 
+    /*
+     * Mês atual.
+     */
+    const monthTitle =
+      `${monNames[currentMonth]} ${currentYear}`;
+
     body.innerHTML = `
+      <div class="booking-month-title"
+        style="
+          text-align:center;
+          font-size:1.1rem;
+          font-weight:700;
+          margin-bottom:16px;
+        "
+      >
+        ${monthTitle}
+      </div>
+
       <div class="date-options">
 
         ${days
           .map(d => {
+
             const dt =
-              RG.parseISO(
-                d.date
+              new Date(
+                currentYear,
+                currentMonth,
+                Number(
+                  d.date.slice(-2)
+                )
               );
 
             const selected =
@@ -1132,11 +1174,9 @@
                 </span>
 
                 <span class="mon">
-                  ${
-                    monNames[
-                      dt.getMonth()
-                    ]
-                  }
+                  ${monNames[
+                    dt.getMonth()
+                  ].slice(0, 3)}
                 </span>
 
               </button>
@@ -1152,7 +1192,8 @@
         margin-top:14px
       ">
         ${window.RGICONS.info}
-        Os dias encerrados aparecem esbatidos.
+        Os dias que já passaram e os dias encerrados
+        aparecem bloqueados.
       </p>
     `;
 
@@ -1161,9 +1202,11 @@
         ".date-opt"
       )
       .forEach(btn => {
+
         btn.addEventListener(
           "click",
           () => {
+
             if (
               btn.disabled
             ) {
@@ -1188,6 +1231,7 @@
               );
           }
         );
+
       });
   }
 
@@ -1196,9 +1240,9 @@
      ============================================================ */
 
   async function stepTime() {
+
     if (!state.date) {
       state.step = 2;
-
       return render();
     }
 
@@ -1235,6 +1279,7 @@
 
     const timeTaken =
       t => {
+
         if (
           state.barber
         ) {
@@ -1243,8 +1288,7 @@
               x.booking_time ===
                 t &&
               x.barber_name ===
-                state.barber
-                  .name
+                state.barber.name
           );
         }
 
@@ -1274,6 +1318,7 @@
 
         ${slots
           .map(t => {
+
             const occupied =
               timeTaken(t);
 
@@ -1313,9 +1358,11 @@
         ".time-opt"
       )
       .forEach(btn => {
+
         btn.addEventListener(
           "click",
           () => {
+
             if (
               btn.disabled
             ) {
@@ -1335,8 +1382,10 @@
                   b === btn
                 )
               );
+
           }
         );
+
       });
   }
 
@@ -1345,10 +1394,12 @@
      ============================================================ */
 
   function stepData() {
+
     const logged =
       window.Auth.isLoggedIn();
 
     if (!logged) {
+
       body.innerHTML = `
         <div class="b-auth-required">
 
@@ -1379,9 +1430,11 @@
         );
 
       if (login) {
+
         login.addEventListener(
           "click",
           () => {
+
             window.Auth
               .signInWithGoogle()
               .catch(() =>
@@ -1390,8 +1443,10 @@
                   "error"
                 )
               );
+
           }
         );
+
       }
 
       return;
@@ -1469,6 +1524,7 @@
       );
 
     if (iNome) {
+
       iNome.addEventListener(
         "input",
         () => {
@@ -1476,9 +1532,11 @@
             iNome.value;
         }
       );
+
     }
 
     if (iTel) {
+
       iTel.addEventListener(
         "input",
         () => {
@@ -1486,6 +1544,7 @@
             iTel.value;
         }
       );
+
     }
   }
 
@@ -1494,11 +1553,13 @@
      ============================================================ */
 
   function stepSummary() {
+
     if (
       !state.service ||
       !state.date ||
       !state.time
     ) {
+
       body.innerHTML = `
         <div class="b-auth-required">
 
@@ -1637,17 +1698,21 @@
      ============================================================ */
 
   function stepSuccess() {
+
     const bk =
       state.lastBooking;
 
     if (!bk) {
+
       body.innerHTML = `
         <div class="b-auth-required">
+
           <p>
             Marcação criada, mas
             não foi possível carregar
             os detalhes.
           </p>
+
         </div>
       `;
 
@@ -1796,22 +1861,28 @@
       );
 
     if (goBookings) {
+
       goBookings.addEventListener(
         "click",
         () => {
+
           close();
 
           window.location.href =
             "profile.html#minhas-marcacoes";
+
         }
       );
+
     }
 
     if (closeBooking) {
+
       closeBooking.addEventListener(
         "click",
         close
       );
+
     }
   }
 
@@ -1820,6 +1891,7 @@
      ============================================================ */
 
   async function confirmBooking() {
+
     if (
       state.submitting
     ) {
@@ -1830,6 +1902,7 @@
       true;
 
     if (nextBtn) {
+
       nextBtn.disabled =
         true;
 
@@ -1854,11 +1927,10 @@
         ? state.barber.name
         : "Sem preferência";
 
-    /* ----------------------------------------------------------
-       VERIFICAR HORÁRIO
-       ---------------------------------------------------------- */
+    /* VERIFICAR HORÁRIO */
 
     try {
+
       const taken =
         await Store.getTakenSlots(
           state.date
@@ -1900,6 +1972,7 @@
             );
 
       if (clash) {
+
         window.showToast(
           "Este horário acabou de ficar ocupado. Escolhe outro.",
           "error"
@@ -1918,20 +1991,23 @@
 
         return;
       }
+
     } catch (error) {
+
       console.warn(
         "Verificação de horário falhou:",
         error
       );
+
     }
 
-    /* ----------------------------------------------------------
-       CRIAR
-       ---------------------------------------------------------- */
+    /* CRIAR */
 
     try {
+
       const booking =
         await Store.create({
+
           nome:
             state.nome.trim(),
 
@@ -1949,10 +2025,13 @@
 
           booking_time:
             state.time
+
         });
 
       /* Atualizar perfil */
+
       try {
+
         await window.Auth.updateProfile(
           {
             nome:
@@ -1962,11 +2041,14 @@
               state.telefone.trim()
           }
         );
+
       } catch (error) {
+
         console.warn(
           "Não foi possível atualizar perfil:",
           error
         );
+
       }
 
       state.lastBooking =
@@ -2014,6 +2096,7 @@
      ============================================================ */
 
   function esc(value) {
+
     return String(
       value ?? ""
     ).replace(
