@@ -1,6 +1,7 @@
 /* ============================================================
    Barbearia RickGino — bookings.js
-   Fluxo de marcação em 7 passos + camada de dados
+   Fluxo de marcação em 7 passos + camada de dados das
+   marcações.
    ============================================================ */
 
 "use strict";
@@ -11,20 +12,6 @@
 
   /* ========================================================
      BOOKINGS STORE
-     Tabela real do Supabase:
-       public.booking
-
-     Colunas:
-       id
-       created_at
-       Nome
-       E-mail
-       Serviço
-       Barbeiro
-       Data
-       Hora
-       Status
-       used_id
      ======================================================== */
 
   const Store = {
@@ -38,16 +25,12 @@
         );
 
         const prof = auth.getUser();
-
         if (!prof) return [];
 
-        return all.filter(
-          (b) => b.user_id === prof.id
-        );
+        return all.filter((b) => b.used_id === prof.id);
       }
 
       const user = auth.getUser();
-
       if (!user) return [];
 
       const { data, error } = await auth
@@ -57,10 +40,7 @@
         .eq("used_id", user.id)
         .order("Data", { ascending: false });
 
-      if (error) {
-        console.error("Erro ao carregar marcações:", error);
-        throw error;
-      }
+      if (error) throw error;
 
       return data || [];
     },
@@ -71,58 +51,34 @@
       const today = RG.toISODate(new Date());
 
       return all
-        .filter((b) => {
-          const status = String(b.Status || "").toLowerCase();
-
-          return (
-            status === "confirmada" &&
-            String(b.Data) >= today
-          );
-        })
-        .sort((a, b) => {
-          const dateA =
-            String(a.Data || "") +
-            String(a.Hora || "");
-
-          const dateB =
-            String(b.Data || "") +
-            String(b.Hora || "");
-
-          return dateA.localeCompare(dateB);
-        });
+        .filter((b) =>
+          String(b.Status || "").toLowerCase() === "confirmada" &&
+          String(b.Data) >= today
+        )
+        .sort((a, b) =>
+          (String(a.Data) + String(a.Hora))
+            .localeCompare(String(b.Data) + String(b.Hora))
+        );
     },
 
     async byId(id) {
       const all = await Store.listAll();
 
       return (
-        all.find(
-          (b) => String(b.id) === String(id)
-        ) || null
+        all.find((b) => String(b.id) === String(id)) ||
+        null
       );
     },
 
-    /* ======================================================
-       CRIAR MARCAÇÃO
-       ====================================================== */
-
     async create(payload) {
       const auth = window.Auth;
-
       const reference = genReference();
 
-      /* ---------------- DEMO ---------------- */
-
       if (auth.isDemo()) {
+
         const all = JSON.parse(
           localStorage.getItem("rg_bookings") || "[]"
         );
-
-        const user = auth.getUser();
-
-        if (!user) {
-          throw new Error("Utilizador não autenticado.");
-        }
 
         const now = new Date().toISOString();
 
@@ -133,26 +89,18 @@
               .toString(36)
               .slice(2, 12),
 
-          user_id: user.id,
+          used_id: auth.getUser().id,
 
-          service_name:
-            payload.service_name,
-
-          barber_name:
-            payload.barber_name,
-
-          booking_date:
-            payload.booking_date,
-
-          booking_time:
-            payload.booking_time,
-
-          status: "confirmed",
+          "Nome": payload.nome || "",
+          "E-mail": payload.email || "",
+          "Serviço": payload.service_name,
+          "Barbeiro": payload.barber_name,
+          "Data": payload.booking_date,
+          "Hora": payload.booking_time,
+          "Status": "confirmada",
 
           reference,
-
           created_at: now,
-
           updated_at: now,
         };
 
@@ -166,103 +114,67 @@
         return rec;
       }
 
-      /* ---------------- SUPABASE ---------------- */
-
       const user = auth.getUser();
 
       if (!user) {
-        throw new Error(
-          "Utilizador não autenticado."
-        );
-      }
-
-      const client = auth.getClient();
-
-      if (!client) {
-        throw new Error(
-          "Supabase não inicializado."
-        );
+        throw new Error("Utilizador não autenticado.");
       }
 
       /*
-        IMPORTANTE:
-        Os nomes abaixo correspondem EXATAMENTE
-        às colunas da tua tabela public.booking.
-      */
+       * IMPORTANTE:
+       * A tua tabela real chama-se:
+       * public.booking
+       *
+       * E as colunas são:
+       * Nome
+       * E-mail
+       * Serviço
+       * Barbeiro
+       * Data
+       * Hora
+       * Status
+       * used_id
+       */
 
-      const record = {
-        "Nome":
-          payload.nome ||
-          user.user_metadata?.full_name ||
-          user.user_metadata?.name ||
-          "Utilizador",
-
-        "E-mail":
-          payload.email ||
-          user.email ||
-          "",
-
-        "Serviço":
-          payload.service_name || "",
-
-        "Barbeiro":
-          payload.barber_name || "",
-
-        "Data":
-          payload.booking_date,
-
-        "Hora":
-          payload.booking_time,
-
-        "Status":
-          "confirmada",
-
-        "used_id":
-          user.id,
-      };
-
-      console.log(
-        "A enviar marcação para Supabase:",
-        record
-      );
-
-      const { data, error } = await client
+      const { data, error } = await auth
+        .getClient()
         .from("booking")
-        .insert([record])
+        .insert([
+          {
+            "Nome": payload.nome || "",
+            "E-mail": payload.email || "",
+            "Serviço": payload.service_name || "",
+            "Barbeiro": payload.barber_name || "",
+            "Data": payload.booking_date,
+            "Hora": payload.booking_time,
+            "Status": "confirmada",
+            "used_id": user.id,
+          },
+        ])
         .select()
         .single();
 
       if (error) {
-        console.error(
-          "ERRO AO CRIAR MARCAÇÃO:",
-          error
-        );
-
+        console.error("Erro Supabase ao criar marcação:", error);
         throw error;
       }
 
-      /*
-        Mantemos a referência no objeto para
-        aparecer na confirmação.
-      */
-
-      if (data) {
-        data.reference = reference;
-      }
-
-      return data;
+      return {
+        ...data,
+        reference,
+        booking_date: data.Data,
+        booking_time: data.Hora,
+        service_name: data["Serviço"],
+        barber_name: data["Barbeiro"],
+        status: data.Status,
+      };
     },
-
-    /* ======================================================
-       CANCELAR
-       Nunca apaga a marcação.
-       Apenas muda Status para cancelada.
-       ====================================================== */
 
     async cancel(id) {
       const auth = window.Auth;
 
       if (auth.isDemo()) {
+
         const all = JSON.parse(
           localStorage.getItem("rg_bookings") || "[]"
         );
@@ -272,13 +184,10 @@
         );
 
         if (idx === -1) {
-          throw new Error(
-            "Marcação não encontrada."
-          );
+          throw new Error("Marcação não encontrada.");
         }
 
-        all[idx].status = "cancelled";
-
+        all[idx].Status = "cancelada";
         all[idx].updated_at =
           new Date().toISOString();
 
@@ -290,14 +199,6 @@
         return all[idx];
       }
 
-      const user = auth.getUser();
-
-      if (!user) {
-        throw new Error(
-          "Utilizador não autenticado."
-        );
-      }
-
       const { data, error } = await auth
         .getClient()
         .from("booking")
@@ -305,34 +206,28 @@
           "Status": "cancelada",
         })
         .eq("id", id)
-        .eq("used_id", user.id)
+        .eq("used_id", auth.getUser().id)
         .select()
         .single();
 
-      if (error) {
-        console.error(
-          "Erro ao cancelar marcação:",
-          error
-        );
-
-        throw error;
-      }
+      if (error) throw error;
 
       return data;
     },
 
-    /* ======================================================
-       HORÁRIOS OCUPADOS
-       Consulta diretamente public.booking.
-       Não depende de RPC.
-       ====================================================== */
+    /*
+     * Horários ocupados.
+     *
+     * Não deixamos a data depender desta função.
+     * Ela só é usada quando chegamos ao passo Horário.
+     */
 
     async getTakenSlots(dateISO) {
+
       const auth = window.Auth;
 
-      /* ---------------- DEMO ---------------- */
-
       if (auth.isDemo()) {
+
         const all = JSON.parse(
           localStorage.getItem("rg_bookings") || "[]"
         );
@@ -340,83 +235,50 @@
         return all
           .filter(
             (b) =>
-              b.status !== "cancelled" &&
-              String(b.booking_date) ===
-                String(dateISO)
+              String(b.Status || "").toLowerCase() !==
+                "cancelada" &&
+              String(b.Data) === dateISO
           )
           .map((b) => ({
-            booking_time:
-              b.booking_time,
-
-            barber_name:
-              b.barber_name,
+            booking_time: b.Hora,
+            barber_name: b["Barbeiro"],
           }));
       }
 
-      /* ---------------- SUPABASE ---------------- */
+      try {
 
-      const client = auth.getClient();
+        const { data, error } = await auth
+          .getClient()
+          .from("booking")
+          .select('"Hora", "Barbeiro", "Status"')
+          .eq('"Data"', dateISO)
+          .neq('"Status"', "cancelada");
 
-      if (!client) {
-        throw new Error(
-          "Supabase não inicializado."
-        );
-      }
+        if (error) throw error;
 
-      const { data, error } = await client
-        .from("booking")
-        .select('"Hora", "Barbeiro", "Status"')
-        .eq('"Data"', dateISO);
-
-      if (error) {
-        console.error(
-          "Erro ao consultar horários:",
-          error
-        );
-
-        throw error;
-      }
-
-      return (data || [])
-        .filter((b) => {
-          const status = String(
-            b.Status || ""
-          ).toLowerCase();
-
-          return (
-            status !== "cancelada" &&
-            status !== "cancelled"
-          );
-        })
-        .map((b) => ({
-          booking_time:
-            normalizeTime(b["Hora"]),
-
-          barber_name:
-            b["Barbeiro"] || "",
+        return (data || []).map((b) => ({
+          booking_time: b["Hora"],
+          barber_name: b["Barbeiro"],
         }));
+
+      } catch (err) {
+
+        console.warn(
+          "Não foi possível consultar horários:",
+          err?.message
+        );
+
+        /*
+         * Mesmo que a consulta falhe,
+         * os horários continuam aparecendo.
+         */
+        return [];
+      }
     },
   };
 
-  function normalizeTime(value) {
-    if (!value) return "";
-
-    const str = String(value);
-
-    /*
-      PostgreSQL time pode voltar:
-      16:30
-      ou
-      16:30:00
-
-      O site usa:
-      16:30
-    */
-
-    return str.slice(0, 5);
-  }
-
   function genReference() {
+
     const chars =
       "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
@@ -424,24 +286,24 @@
 
     for (let i = 0; i < 6; i++) {
       r += chars[
-        Math.floor(
-          Math.random() * chars.length
-        )
+        Math.floor(Math.random() * chars.length)
       ];
     }
 
     const d = new Date();
 
-    return `RG${String(
-      d.getFullYear()
-    ).slice(2)}${String(
-      d.getMonth() + 1
-    ).padStart(2, "0")}${String(
-      d.getDate()
-    ).padStart(2, "0")}-${r}`;
+    return (
+      "RG" +
+      String(d.getFullYear()).slice(2) +
+      String(d.getMonth() + 1).padStart(2, "0") +
+      String(d.getDate()).padStart(2, "0") +
+      "-" +
+      r
+    );
   }
 
   window.BookingsStore = Store;
+
 
   /* ========================================================
      WIZARD
@@ -458,6 +320,7 @@
   ];
 
   const state = {
+
     step: 0,
 
     service: null,
@@ -481,36 +344,30 @@
     submitting: false,
 
     lastBooking: null,
+
+    /* CONTROLO DO MÊS */
+    calendarYear: new Date().getFullYear(),
+
+    calendarMonth: new Date().getMonth(),
   };
 
-  let modal;
-  let body;
-  let dots;
-  let foot;
-  let backBtn;
-  let nextBtn;
-  let stepTitle;
-  let stepLabel;
 
-  /* ========================================================
-     OPEN
-     ======================================================== */
+  let modal,
+    body,
+    dots,
+    foot,
+    backBtn,
+    nextBtn,
+    stepTitle,
+    stepLabel;
+
 
   function open(opts = {}) {
+
     resetState();
 
-    if (!modal) {
-      init();
-    }
-
-    if (!modal) {
-      console.error(
-        "bookingModal não encontrado."
-      );
-      return;
-    }
-
     if (opts.serviceId) {
+
       state.service =
         D.services.find(
           (s) => s.id === opts.serviceId
@@ -518,24 +375,42 @@
     }
 
     if (opts.barberId) {
+
       state.barber =
         D.team.find(
           (t) => t.id === opts.barberId
         ) || null;
 
-      state.noBarberPref =
-        !state.barber;
+      state.noBarberPref = !state.barber;
     }
+
+    /*
+     * Sempre começa no mês atual.
+     */
+    const now = new Date();
+
+    state.calendarYear =
+      now.getFullYear();
+
+    state.calendarMonth =
+      now.getMonth();
+
+    if (!modal) {
+      init();
+    }
+
+    if (!modal) return;
 
     modal.classList.add("open");
 
-    document.body.style.overflow =
-      "hidden";
+    document.body.style.overflow = "hidden";
 
     render();
   }
 
+
   function close() {
+
     if (!modal) return;
 
     modal.classList.remove("open");
@@ -543,7 +418,9 @@
     document.body.style.overflow = "";
   }
 
+
   function resetState() {
+
     state.step = 0;
 
     state.service = null;
@@ -567,13 +444,19 @@
     state.telefone = "";
 
     state.email = "";
+
+    const now = new Date();
+
+    state.calendarYear =
+      now.getFullYear();
+
+    state.calendarMonth =
+      now.getMonth();
   }
 
-  /* ========================================================
-     INIT
-     ======================================================== */
 
   function init() {
+
     modal =
       document.getElementById(
         "bookingModal"
@@ -616,6 +499,7 @@
         "bookingStepTitle"
       );
 
+
     document
       .getElementById("bookingClose")
       ?.addEventListener(
@@ -623,32 +507,36 @@
         close
       );
 
+
     modal.addEventListener(
       "click",
       (e) => {
+
         if (e.target === modal) {
           close();
         }
       }
     );
 
+
     document.addEventListener(
       "keydown",
       (e) => {
+
         if (
           e.key === "Escape" &&
-          modal.classList.contains(
-            "open"
-          )
+          modal.classList.contains("open")
         ) {
           close();
         }
       }
     );
 
+
     backBtn?.addEventListener(
       "click",
       () => {
+
         if (state.step === 6) return;
 
         state.step--;
@@ -661,72 +549,23 @@
       }
     );
 
+
     nextBtn?.addEventListener(
       "click",
       onNext
     );
 
-    /*
-      GARANTE QUE OS BOTÕES
-      "Marcar agora" ABREM O WIZARD.
-    */
 
-    document
-      .querySelectorAll(
-        "[data-book]"
-      )
-      .forEach((btn) => {
-        btn.addEventListener(
-          "click",
-          (e) => {
-            e.preventDefault();
+    if (window.Auth) {
 
-            open();
-          }
-        );
-      });
-
-    /*
-      Também aceita elementos
-      com id/class comuns.
-    */
-
-    document
-      .querySelectorAll(
-        ".book-now, .marcar-agora"
-      )
-      .forEach((btn) => {
-        if (
-          btn.dataset.bookingBound
-        ) {
-          return;
-        }
-
-        btn.dataset.bookingBound =
-          "true";
-
-        btn.addEventListener(
-          "click",
-          (e) => {
-            e.preventDefault();
-
-            open();
-          }
-        );
-      });
-
-    if (
-      window.Auth &&
-      typeof window.Auth.setOnAuthChange ===
-        "function"
-    ) {
       window.Auth.setOnAuthChange(
         () => {
+
           if (
-            modal.classList.contains(
-              "open"
-            )
+            modal &&
+            modal.classList.contains("open")
           ) {
+
             if (state.step === 4) {
               refreshStepData();
             }
@@ -738,18 +577,15 @@
     }
   }
 
-  /* ========================================================
-     RENDER
-     ======================================================== */
 
   function render() {
+
     if (
-      !modal ||
       !body ||
-      !dots ||
-      !foot ||
-      !backBtn ||
-      !nextBtn
+      !modal ||
+      !stepTitle ||
+      !stepLabel ||
+      !dots
     ) {
       return;
     }
@@ -762,6 +598,7 @@
     stepTitle.textContent =
       Steps[s];
 
+
     dots.innerHTML =
       Steps.map(
         (_, i) =>
@@ -772,7 +609,9 @@
           }"></span>`
       ).join("");
 
+
     body.innerHTML = "";
+
 
     const renderers = [
       stepService,
@@ -784,75 +623,112 @@
       stepSuccess,
     ];
 
+
     try {
-      renderers[s]();
+
+      const result =
+        renderers[s]();
+
+      /*
+       * stepTime é assíncrono.
+       */
+      if (
+        result &&
+        typeof result.catch === "function"
+      ) {
+        result.catch((err) => {
+
+          console.error(
+            "Erro ao carregar passo:",
+            err
+          );
+
+          body.innerHTML = `
+            <div class="b-auth-required">
+              <span class="auth-ic">
+                ${window.RGICONS?.info || ""}
+              </span>
+
+              <p>
+                Não foi possível carregar este passo.
+              </p>
+
+              <button
+                type="button"
+                class="btn btn-gold"
+                id="retryStep"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          `;
+
+          body
+            .querySelector("#retryStep")
+            ?.addEventListener(
+              "click",
+              () => render()
+            );
+        });
+      }
+
     } catch (err) {
+
       console.error(
-        "Erro ao carregar passo:",
+        "Erro ao renderizar passo:",
         err
       );
-
-      body.innerHTML = `
-        <div class="b-auth-required">
-          <span class="auth-ic">
-            ${window.RGICONS?.info || ""}
-          </span>
-          <p>
-            Não foi possível carregar este passo.
-          </p>
-        </div>
-      `;
-
-      return;
     }
 
-    foot.style.display =
-      s === 6 ? "none" : "flex";
 
-    backBtn.style.visibility =
-      s === 0
-        ? "hidden"
-        : "visible";
+    if (foot) {
+      foot.style.display =
+        s === 6 ? "none" : "flex";
+    }
 
-    if (s === 5) {
-      nextBtn.innerHTML = `
-        ${
-          window.RGICONS?.check || ""
-        }
-        <span>
-          Confirmar marcação
-        </span>
-      `;
+    if (backBtn) {
+      backBtn.style.visibility =
+        s === 0 ? "hidden" : "visible";
+    }
 
-      nextBtn.classList.add(
-        "btn-gold"
-      );
 
-      nextBtn.disabled =
-        state.submitting;
-    } else {
-      nextBtn.innerHTML = `
-        Continuar
-        ${
-          window.RGICONS?.arrowRight ||
-          ""
-        }
-      `;
+    if (nextBtn) {
 
-      nextBtn.classList.add(
-        "btn-gold"
-      );
+      if (s === 5) {
 
-      nextBtn.disabled = false;
+        nextBtn.innerHTML = `
+          ${window.RGICONS.check}
+          <span>Confirmar marcação</span>
+        `;
+
+        nextBtn.classList.add(
+          "btn-gold"
+        );
+
+        nextBtn.disabled =
+          state.submitting;
+
+      } else {
+
+        nextBtn.innerHTML = `
+          Continuar
+          ${window.RGICONS.arrowRight}
+        `;
+
+        nextBtn.classList.add(
+          "btn-gold"
+        );
+
+        nextBtn.disabled = false;
+      }
     }
   }
 
-  /* ========================================================
-     NEXT
-     ======================================================== */
 
   async function onNext() {
+
     const s = state.step;
+
 
     if (
       s === 0 &&
@@ -864,16 +740,18 @@
       );
     }
 
+
     if (
       s === 1 &&
       !state.noBarberPref &&
       !state.barber
     ) {
       return window.showToast(
-        'Escolhe um barbeiro ou "Sem preferência".',
+        'Escolhe um barbeiro (ou "Sem preferência").',
         "info"
       );
     }
+
 
     if (
       s === 2 &&
@@ -885,6 +763,7 @@
       );
     }
 
+
     if (
       s === 3 &&
       !state.time
@@ -895,28 +774,27 @@
       );
     }
 
+
     if (s === 4) {
-      if (
-        !window.Auth.isLoggedIn()
-      ) {
+
+      if (!window.Auth.isLoggedIn()) {
+
         return window.showToast(
           "Inicia sessão para continuar.",
           "info"
         );
       }
 
-      if (
-        !state.nome.trim()
-      ) {
+      if (!state.nome.trim()) {
+
         return window.showToast(
           "Indica o teu nome.",
           "error"
         );
       }
 
-      if (
-        !state.telefone.trim()
-      ) {
+      if (!state.telefone.trim()) {
+
         return window.showToast(
           "Indica o teu telefone.",
           "error"
@@ -924,14 +802,20 @@
       }
     }
 
+
     if (s === 5) {
-      await confirmBooking();
+
+      confirmBooking();
+
       return;
     }
 
+
     state.step++;
 
+
     if (state.step === 4) {
+
       await refreshStepData();
 
       render();
@@ -939,91 +823,83 @@
       return;
     }
 
+
     render();
   }
 
-  /* ========================================================
-     PERFIL
-     ======================================================== */
 
   async function refreshStepData() {
-    try {
-      const prof =
-        await window.Auth.getProfile();
 
-      if (prof) {
-        state.nome =
-          prof.nome || "";
+    const prof =
+      await window.Auth.getProfile();
 
-        state.telefone =
-          prof.telefone || "";
+    if (prof) {
 
-        state.email =
-          prof.email || "";
-      }
-    } catch (err) {
-      console.warn(
-        "Não foi possível carregar perfil:",
-        err
-      );
+      state.nome =
+        prof.nome || "";
+
+      state.telefone =
+        prof.telefone || "";
+
+      state.email =
+        prof.email || "";
     }
   }
+
 
   /* ========================================================
      PASSO 1
      ======================================================== */
 
   function stepService() {
+
     body.innerHTML = `
       <div class="service-options">
 
-        ${
-          D.services
-            .map(
-              (s) => `
-                <button
-                  type="button"
-                  class="service-opt ${
-                    state.service?.id === s.id
-                      ? "selected"
-                      : ""
-                  }"
-                  data-svc="${esc(
-                    s.id
-                  )}"
-                >
+        ${D.services
+          .map(
+            (s) => `
+              <button
+                type="button"
+                class="service-opt ${
+                  state.service?.id === s.id
+                    ? "selected"
+                    : ""
+                }"
+                data-svc="${esc(s.id)}"
+              >
 
-                  <span class="so-name">
-                    ${esc(s.name)}
+                <span class="so-name">
+                  ${esc(s.name)}
+                </span>
+
+                <span class="so-meta">
+                  <span>
+                    ${s.duration} min
                   </span>
 
-                  <span class="so-meta">
-                    <span>
-                      ${s.duration} min
-                    </span>
-
-                    <span class="so-price">
-                      ${s.price}€
-                    </span>
+                  <span class="so-price">
+                    ${s.price}€
                   </span>
+                </span>
 
-                </button>
-              `
-            )
-            .join("")
-        }
+              </button>
+            `
+          )
+          .join("")}
 
       </div>
     `;
 
+
     body
-      .querySelectorAll(
-        ".service-opt"
-      )
+      .querySelectorAll(".service-opt")
       .forEach((btn) => {
+
         btn.addEventListener(
           "click",
           () => {
+
             state.service =
               D.services.find(
                 (s) =>
@@ -1035,24 +911,28 @@
               .querySelectorAll(
                 ".service-opt"
               )
-              .forEach((b) =>
-                b.classList.toggle(
-                  "selected",
-                  b === btn
-                )
+              .forEach(
+                (b) =>
+                  b.classList.toggle(
+                    "selected",
+                    b === btn
+                  )
               );
           }
         );
       });
   }
 
+
   /* ========================================================
      PASSO 2
      ======================================================== */
 
   function stepBarber() {
+
     const anySelected =
       state.noBarberPref;
+
 
     body.innerHTML = `
       <div class="barber-options">
@@ -1066,11 +946,9 @@
           }"
           data-barber="any"
         >
+
           <span class="bo-avatar">
-            ${
-              window.RGICONS
-                ?.scissors || ""
-            }
+            ${window.RGICONS.scissors}
           </span>
 
           <span class="bo-name">
@@ -1080,78 +958,74 @@
           <span class="badge-any">
             Primeiro disponível
           </span>
+
         </button>
 
-        ${
-          D.team
-            .map(
-              (t) => `
-                <button
-                  type="button"
-                  class="barber-opt ${
-                    state.barber?.id ===
-                    t.id
-                      ? "selected"
-                      : ""
-                  }"
-                  data-barber="${esc(
-                    t.id
-                  )}"
-                >
 
-                  <span class="bo-avatar">
+        ${D.team
+          .map(
+            (t) => `
+              <button
+                type="button"
+                class="barber-opt ${
+                  state.barber?.id === t.id
+                    ? "selected"
+                    : ""
+                }"
+                data-barber="${esc(t.id)}"
+              >
 
-                    ${
-                      t.photo
-                        ? `<img
-                            src="${esc(
-                              t.photo
-                            )}"
-                            alt=""
-                          >`
-                        : window.RG.initials(
-                            t.name
-                          )
-                    }
+                <span class="bo-avatar">
 
-                  </span>
+                  ${
+                    t.photo
+                      ? `<img src="${esc(
+                          t.photo
+                        )}" alt="">`
+                      : window.RG.initials(
+                          t.name
+                        )
+                  }
 
-                  <span class="bo-name">
-                    ${esc(t.name)}
-                  </span>
+                </span>
 
-                  <span class="bo-spec">
-                    ${esc(
-                      t.specialty
-                    )}
-                  </span>
+                <span class="bo-name">
+                  ${esc(t.name)}
+                </span>
 
-                </button>
-              `
-            )
-            .join("")
-        }
+                <span class="bo-spec">
+                  ${esc(t.specialty)}
+                </span>
+
+              </button>
+            `
+          )
+          .join("")}
 
       </div>
     `;
 
+
     body
-      .querySelectorAll(
-        ".barber-opt"
-      )
+      .querySelectorAll(".barber-opt")
       .forEach((btn) => {
+
         btn.addEventListener(
           "click",
           () => {
+
             if (
               btn.dataset.barber ===
               "any"
             ) {
+
               state.barber = null;
 
               state.noBarberPref =
                 true;
+
             } else {
+
               state.barber =
                 D.team.find(
                   (t) =>
@@ -1163,58 +1037,110 @@
                 false;
             }
 
+
             body
               .querySelectorAll(
                 ".barber-opt"
               )
-              .forEach((b) =>
-                b.classList.toggle(
-                  "selected",
-                  b === btn
-                )
+              .forEach(
+                (b) =>
+                  b.classList.toggle(
+                    "selected",
+                    b === btn
+                  )
               );
           }
         );
       });
   }
 
+
   /* ========================================================
      PASSO 3 — DATA
-     Mantido como estava no teu código.
      ======================================================== */
 
   function stepDate() {
-    const days = [];
 
-    const now = new Date();
+    /*
+     * DATA ATUAL
+     */
+    const today =
+      new Date();
 
-    for (
-      let i = 0;
-      i <
-      (D.bookingDaysAhead || 14);
-      i++
+    today.setHours(
+      0,
+      0,
+      0,
+      0
+    );
+
+
+    /*
+     * Garante que o mês não fica
+     * num mês antigo.
+     */
+    if (
+      state.calendarYear <
+        today.getFullYear() ||
+      (
+        state.calendarYear ===
+          today.getFullYear() &&
+        state.calendarMonth <
+          today.getMonth()
+      )
     ) {
-      const d =
-        RG.addDays(now, i);
 
-      const dow =
-        d.getDay();
+      state.calendarYear =
+        today.getFullYear();
 
-      const closed =
-        (
-          D.bookingClosedWeekdays ||
-          []
-        ).includes(dow);
-
-      days.push({
-        date:
-          RG.toISODate(d),
-
-        dow,
-
-        closed,
-      });
+      state.calendarMonth =
+        today.getMonth();
     }
+
+
+    const year =
+      state.calendarYear;
+
+    const month =
+      state.calendarMonth;
+
+
+    /*
+     * Primeiro dia do mês.
+     */
+    const firstDay =
+      new Date(
+        year,
+        month,
+        1
+      );
+
+
+    /*
+     * Último dia do mês.
+     */
+    const lastDay =
+      new Date(
+        year,
+        month + 1,
+        0
+      );
+
+
+    /*
+     * Quantidade de dias.
+     */
+    const totalDays =
+      lastDay.getDate();
+
+
+    /*
+     * Dia da semana do primeiro dia.
+     * Domingo = 0.
+     */
+    const firstWeekDay =
+      firstDay.getDay();
+
 
     const dowNames = [
       "Dom",
@@ -1226,74 +1152,192 @@
       "Sáb",
     ];
 
-    const monNames = [
-      "Jan",
-      "Fev",
-      "Mar",
-      "Abr",
-      "Mai",
-      "Jun",
-      "Jul",
-      "Ago",
-      "Set",
-      "Out",
-      "Nov",
-      "Dez",
+
+    const monthNames = [
+      "Janeiro",
+      "Fevereiro",
+      "Março",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro",
     ];
 
-    body.innerHTML = `
-      <div class="date-options">
 
-        ${days
-          .map((d) => {
-            const dt =
-              RG.parseISO(
-                d.date
-              );
+    let html = `
+      <div class="calendar">
 
-            const sel =
-              state.date ===
-              d.date;
+        <div
+          class="calendar-header"
+          style="
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:10px;
+            margin-bottom:16px;
+          "
+        >
 
-            return `
-              <button
-                type="button"
-                class="date-opt ${
-                  sel
-                    ? "selected"
-                    : ""
-                } ${
-                  d.closed
-                    ? "disabled"
-                    : ""
-                }"
-                data-date="${d.date}"
-              >
+          <button
+            type="button"
+            class="calendar-nav"
+            id="calendarPrev"
+            aria-label="Mês anterior"
+          >
+            ‹
+          </button>
 
-                <span class="dow">
-                  ${
-                    dowNames[
-                      d.dow
-                    ]
-                  }
-                </span>
+          <strong
+            class="calendar-title"
+          >
+            ${monthNames[month]}
+            ${year}
+          </strong>
 
-                <span class="day">
-                  ${dt.getDate()}
-                </span>
+          <button
+            type="button"
+            class="calendar-nav"
+            id="calendarNext"
+            aria-label="Próximo mês"
+          >
+            ›
+          </button>
 
-                <span class="mon">
-                  ${
-                    monNames[
-                      dt.getMonth()
-                    ]
-                  }
-                </span>
+        </div>
 
-              </button>
-            `;
-          })
-          .join("")}
+        <div class="date-weekdays">
+          ${dowNames
+            .map(
+              (d) =>
+                `<span>${d}</span>`
+            )
+            .join("")}
+        </div>
+
+        <div class="date-options calendar-grid">
+    `;
+
+
+    /*
+     * Espaços antes do dia 1.
+     */
+    for (
+      let i = 0;
+      i < firstWeekDay;
+      i++
+    ) {
+
+      html += `
+        <span
+          class="date-empty"
+        ></span>
+      `;
+    }
+
+
+    /*
+     * TODOS os dias do mês.
+     */
+    for (
+      let day = 1;
+      day <= totalDays;
+      day++
+    ) {
+
+      const date =
+        new Date(
+          year,
+          month,
+          day
+        );
+
+
+      date.setHours(
+        0,
+        0,
+        0,
+        0
+      );
+
+
+      const dateISO =
+        `${year}-${String(
+          month + 1
+        ).padStart(2, "0")}-${String(
+          day
+        ).padStart(2, "0")}`;
+
+
+      /*
+       * Dias anteriores a hoje ficam bloqueados.
+       */
+      const past =
+        date < today;
+
+
+      /*
+       * Dias fechados configurados
+       * também ficam bloqueados.
+       */
+      const dow =
+        date.getDay();
+
+
+      const closed =
+        (
+          D.bookingClosedWeekdays ||
+          []
+        ).includes(dow);
+
+
+      const disabled =
+        past || closed;
+
+
+      const selected =
+        state.date === dateISO;
+
+
+      html += `
+        <button
+          type="button"
+          class="date-opt ${
+            selected
+              ? "selected"
+              : ""
+          } ${
+            disabled
+              ? "disabled"
+              : ""
+          }"
+          data-date="${dateISO}"
+          ${disabled ? "disabled" : ""}
+        >
+
+          <span class="dow">
+            ${dowNames[dow]}
+          </span>
+
+          <span class="day">
+            ${day}
+          </span>
+
+          <span class="mon">
+            ${monthNames[month].slice(0, 3)}
+          </span>
+
+        </button>
+      `;
+    }
+
+
+    html += `
+        </div>
 
       </div>
 
@@ -1301,63 +1345,158 @@
         style="
           color:var(--muted);
           font-size:.8rem;
-          margin-top:14px
+          margin-top:14px;
         "
       >
-        ${
-          window.RGICONS?.info ||
-          ""
-        }
-        Os dias encerrados aparecem esbatidos.
+        ${window.RGICONS.info}
+        Os dias que já passaram e os dias
+        encerrados ficam bloqueados.
       </p>
     `;
 
+
+    body.innerHTML = html;
+
+
+    /*
+     * MÊS ANTERIOR
+     */
+    body
+      .querySelector("#calendarPrev")
+      ?.addEventListener(
+        "click",
+        () => {
+
+          const current =
+            new Date(
+              today.getFullYear(),
+              today.getMonth(),
+              1
+            );
+
+          const selected =
+            new Date(
+              state.calendarYear,
+              state.calendarMonth,
+              1
+            );
+
+
+          /*
+           * Não deixa voltar para
+           * meses anteriores ao atual.
+           */
+          if (
+            selected <= current
+          ) {
+            return;
+          }
+
+
+          state.calendarMonth--;
+
+          if (
+            state.calendarMonth <
+            0
+          ) {
+
+            state.calendarMonth =
+              11;
+
+            state.calendarYear--;
+          }
+
+
+          render();
+        }
+      );
+
+
+    /*
+     * PRÓXIMO MÊS
+     */
+    body
+      .querySelector("#calendarNext")
+      ?.addEventListener(
+        "click",
+        () => {
+
+          state.calendarMonth++;
+
+          if (
+            state.calendarMonth >
+            11
+          ) {
+
+            state.calendarMonth =
+              0;
+
+            state.calendarYear++;
+          }
+
+
+          /*
+           * Se mudou de mês,
+           * limpa a data selecionada.
+           */
+          state.date = null;
+
+          state.time = null;
+
+          render();
+        }
+      );
+
+
+    /*
+     * CLIQUE NOS DIAS
+     */
     body
       .querySelectorAll(
-        ".date-opt"
+        ".date-opt:not(.disabled)"
       )
       .forEach((btn) => {
+
         btn.addEventListener(
           "click",
           () => {
-            if (
-              btn.classList.contains(
-                "disabled"
-              )
-            ) {
-              return;
-            }
 
             state.date =
               btn.dataset.date;
 
             state.time = null;
 
+
             body
               .querySelectorAll(
                 ".date-opt"
               )
-              .forEach((b) =>
-                b.classList.toggle(
-                  "selected",
-                  b === btn
-                )
+              .forEach(
+                (b) =>
+                  b.classList.toggle(
+                    "selected",
+                    b === btn
+                  )
               );
           }
         );
       });
   }
 
+
   /* ========================================================
      PASSO 4 — HORÁRIO
      ======================================================== */
 
   async function stepTime() {
+
     if (!state.date) {
+
       state.step = 2;
 
       return render();
     }
+
 
     body.innerHTML = `
       <div class="b-loading">
@@ -1371,55 +1510,88 @@
       </div>
     `;
 
+
     try {
+
       state.taken =
         await Store.getTakenSlots(
           state.date
         );
+
     } catch (err) {
+
       state.taken = [];
 
-      console.warn(
-        "Erro ao consultar horários:",
-        err
-      );
+      console.warn(err);
     }
+
 
     const taken =
       state.taken || [];
 
+
+    /*
+     * Se não houver bookingSlots
+     * no SITE_DATA, usamos horários
+     * padrão para o calendário não
+     * ficar vazio.
+     */
     const slots =
-      D.bookingSlots || [];
+      Array.isArray(
+        D.bookingSlots
+      ) &&
+      D.bookingSlots.length
+        ? D.bookingSlots
+        : [
+            "09:00",
+            "09:30",
+            "10:00",
+            "10:30",
+            "11:00",
+            "11:30",
+            "12:00",
+            "12:30",
+            "14:00",
+            "14:30",
+            "15:00",
+            "15:30",
+            "16:00",
+            "16:30",
+            "17:00",
+            "17:30",
+            "18:00",
+            "18:30",
+            "19:00",
+            "19:30",
+          ];
 
-    const timeTaken = (
-      t
-    ) => {
-      const normalized =
-        normalizeTime(t);
 
-      if (state.barber) {
+    const timeTaken =
+      (t) => {
+
+        if (state.barber) {
+
+          return taken.some(
+            (x) =>
+              String(
+                x.booking_time
+              ).slice(0, 5) ===
+                String(t).slice(0, 5) &&
+              x.barber_name ===
+                state.barber.name
+          );
+        }
+
+
         return taken.some(
           (x) =>
-            normalizeTime(
-              x.booking_time
-            ) ===
-              normalized &&
             String(
-              x.barber_name || ""
-            ) ===
-              String(
-                state.barber.name
-              )
+              x.booking_time
+            ).slice(0, 5) ===
+            String(t).slice(0, 5)
         );
-      }
+      };
 
-      return taken.some(
-        (x) =>
-          normalizeTime(
-            x.booking_time
-          ) === normalized
-      );
-    };
 
     body.innerHTML = `
       <div class="slot-legend">
@@ -1439,83 +1611,90 @@
       <div class="time-options">
 
         ${slots
-          .map((t) => {
-            const occupied =
-              timeTaken(t);
+          .map(
+            (t) => {
 
-            return `
-              <button
-                type="button"
-                class="time-opt ${
-                  state.time === t
-                    ? "selected"
-                    : ""
-                } ${
-                  occupied
-                    ? "disabled"
-                    : ""
-                }"
-                data-time="${esc(
-                  t
-                )}"
-                ${
-                  occupied
-                    ? "disabled"
-                    : ""
-                }
-              >
-                ${esc(t)}
-              </button>
-            `;
-          })
+              const occupied =
+                timeTaken(t);
+
+              return `
+                <button
+                  type="button"
+                  class="time-opt ${
+                    state.time === t
+                      ? "selected"
+                      : ""
+                  } ${
+                    occupied
+                      ? "disabled"
+                      : ""
+                  }"
+                  data-time="${esc(t)}"
+                  ${
+                    occupied
+                      ? "disabled"
+                      : ""
+                  }
+                >
+                  ${esc(t)}
+                </button>
+              `;
+            }
+          )
           .join("")}
 
       </div>
     `;
 
+
     body
       .querySelectorAll(
-        ".time-opt"
+        ".time-opt:not(.disabled)"
       )
       .forEach((btn) => {
+
         btn.addEventListener(
           "click",
           () => {
+
             state.time =
               btn.dataset.time;
+
 
             body
               .querySelectorAll(
                 ".time-opt"
               )
-              .forEach((b) =>
-                b.classList.toggle(
-                  "selected",
-                  b === btn
-                )
+              .forEach(
+                (b) =>
+                  b.classList.toggle(
+                    "selected",
+                    b === btn
+                  )
               );
           }
         );
       });
   }
 
+
   /* ========================================================
      PASSO 5 — DADOS
      ======================================================== */
 
   function stepData() {
+
     const logged =
       window.Auth.isLoggedIn();
 
+
     if (!logged) {
+
       body.innerHTML = `
         <div class="b-auth-required">
 
           <span class="auth-ic">
-            ${
-              window.RGICONS
-                ?.user || ""
-            }
+            ${window.RGICONS.user}
           </span>
 
           <p>
@@ -1528,15 +1707,13 @@
             class="btn-google"
             id="bLoginGoogle"
           >
-            ${
-              window.RGICONS
-                ?.google || ""
-            }
+            ${window.RGICONS.google}
             Continuar com Google
           </button>
 
         </div>
       `;
+
 
       body
         .querySelector(
@@ -1547,16 +1724,19 @@
           () =>
             window.Auth
               .signInWithGoogle()
-              .catch(() =>
-                window.showToast(
-                  "Login falhou. Tenta novamente.",
-                  "error"
-                )
+              .catch(
+                () =>
+                  window.showToast(
+                    "Login falhou. Tenta novamente.",
+                    "error"
+                  )
               )
         );
 
+
       return;
     }
+
 
     body.innerHTML = `
       <div class="b-form">
@@ -1570,13 +1750,12 @@
           <input
             id="bkNome"
             type="text"
-            value="${esc(
-              state.nome
-            )}"
+            value="${esc(state.nome)}"
             placeholder="O teu nome"
           >
 
         </div>
+
 
         <div class="field">
 
@@ -1587,13 +1766,12 @@
           <input
             id="bkTel"
             type="tel"
-            value="${esc(
-              state.telefone
-            )}"
+            value="${esc(state.telefone)}"
             placeholder="+351 ..."
           >
 
         </div>
+
 
         <div class="field full">
 
@@ -1604,9 +1782,7 @@
           <input
             id="bkEmail"
             type="email"
-            value="${esc(
-              state.email
-            )}"
+            value="${esc(state.email)}"
             disabled
           >
 
@@ -1619,24 +1795,23 @@
       </div>
     `;
 
+
     const iNome =
-      body.querySelector(
-        "#bkNome"
-      );
+      body.querySelector("#bkNome");
 
     const iTel =
-      body.querySelector(
-        "#bkTel"
-      );
+      body.querySelector("#bkTel");
 
-    iNome.addEventListener(
+
+    iNome?.addEventListener(
       "input",
       () =>
         (state.nome =
           iNome.value)
     );
 
-    iTel.addEventListener(
+
+    iTel?.addEventListener(
       "input",
       () =>
         (state.telefone =
@@ -1644,61 +1819,70 @@
     );
   }
 
+
   /* ========================================================
      PASSO 6 — RESUMO
      ======================================================== */
 
   function stepSummary() {
+
     if (
       !state.service ||
       !state.date ||
       !state.time
     ) {
+
       body.innerHTML = `
         <div class="b-auth-required">
+
           <p>
-            Falta selecionar o serviço,
-            a data ou o horário.
+            Verifica os dados da marcação.
           </p>
+
         </div>
       `;
 
       return;
     }
 
+
     const dt =
-      RG.parseISO(
-        state.date
-      );
+      RG.parseISO(state.date);
+
 
     const b =
       state.barber || {
         name: "Sem preferência",
       };
 
+
     body.innerHTML = `
       <div class="b-summary">
 
         <div class="sum-row">
+
           <span class="k">
             Serviço
           </span>
 
           <span class="v">
+
             ${esc(
               state.service.name
             )}
 
             <span class="sub">
-              ${
-                state.service
-                  .duration
-              } min
+              ${state.service.duration}
+              min
             </span>
+
           </span>
+
         </div>
 
+
         <div class="sum-row">
+
           <span class="k">
             Barbeiro
           </span>
@@ -1706,123 +1890,126 @@
           <span class="v">
             ${esc(b.name)}
           </span>
+
         </div>
 
+
         <div class="sum-row">
+
           <span class="k">
             Data
           </span>
 
           <span class="v">
+
             ${dt
               .getDate()
               .toString()
-              .padStart(
-                2,
-                "0"
-              )}/${(
+              .padStart(2, "0")}/${(
               dt.getMonth() + 1
             )
               .toString()
-              .padStart(
-                2,
-                "0"
-              )}/${dt.getFullYear()}
+              .padStart(2, "0")}/${dt.getFullYear()}
+
           </span>
+
         </div>
 
+
         <div class="sum-row">
+
           <span class="k">
             Hora
           </span>
 
           <span class="v">
-            ${esc(
-              state.time
-            )}
+            ${esc(state.time)}
           </span>
+
         </div>
 
+
         <div class="sum-row">
+
           <span class="k">
             Nome
           </span>
 
           <span class="v">
-            ${esc(
-              state.nome
-            )}
+            ${esc(state.nome)}
           </span>
+
         </div>
 
+
         <div class="sum-row sum-total">
+
           <span class="k">
             Total
           </span>
 
           <span class="v">
-            ${
-              state.service
-                .price
-            }€
+            ${state.service.price}€
           </span>
+
         </div>
 
       </div>
     `;
   }
 
+
   /* ========================================================
-     PASSO 7 — CONFIRMADO
+     PASSO 7 — CONFIRMAÇÃO
      ======================================================== */
 
   function stepSuccess() {
+
     const bk =
       state.lastBooking;
 
-    if (!bk) {
-      body.innerHTML = `
-        <div class="b-auth-required">
-          <p>
-            Marcação não encontrada.
-          </p>
-        </div>
-      `;
 
-      return;
+    if (!bk) {
+
+      state.step = 5;
+
+      return render();
     }
 
-    const b =
-      bk["Barbeiro"] ||
-      bk.barber_name ||
-      "—";
-
-    const bookingDate =
-      bk["Data"] ||
-      bk.booking_date;
-
-    const bookingTime =
-      bk["Hora"] ||
-      bk.booking_time;
 
     const service =
-      bk["Serviço"] ||
       bk.service_name ||
+      bk["Serviço"] ||
       "";
+
+
+    const barber =
+      bk.barber_name ||
+      bk["Barbeiro"] ||
+      "—";
+
+
+    const bookingDate =
+      bk.booking_date ||
+      bk["Data"];
+
+
+    const bookingTime =
+      bk.booking_time ||
+      bk["Hora"];
+
 
     const dt =
       RG.parseISO(
         bookingDate
       );
 
+
     body.innerHTML = `
       <div class="b-success">
 
         <span class="suc-ic">
-          ${
-            window.RGICONS
-              ?.check || ""
-          }
+          ${window.RGICONS.check}
         </span>
 
         <h3>
@@ -1831,13 +2018,15 @@
         </h3>
 
         <p>
-          Obrigado! A tua marcação
-          foi confirmada.
+          Obrigado! A tua marcação foi
+          registada com sucesso.
         </p>
+
 
         <div class="b-summary suc-card">
 
           <div class="sum-row">
+
             <span class="k">
               Serviço
             </span>
@@ -1845,64 +2034,69 @@
             <span class="v">
               ${esc(service)}
             </span>
+
           </div>
 
+
           <div class="sum-row">
+
             <span class="k">
               Barbeiro
             </span>
 
             <span class="v">
-              ${esc(b)}
+              ${esc(barber)}
             </span>
+
           </div>
 
+
           <div class="sum-row">
+
             <span class="k">
               Data
             </span>
 
             <span class="v">
+
               ${dt
                 .getDate()
                 .toString()
-                .padStart(
-                  2,
-                  "0"
-                )}/${(
+                .padStart(2, "0")}/${(
                 dt.getMonth() + 1
               )
                 .toString()
-                .padStart(
-                  2,
-                  "0"
-                )}/${dt.getFullYear()}
+                .padStart(2, "0")}/${dt.getFullYear()}
+
             </span>
+
           </div>
 
+
           <div class="sum-row">
+
             <span class="k">
               Hora
             </span>
 
             <span class="v">
-              ${esc(
-                normalizeTime(
-                  bookingTime
-                )
-              )}
+              ${esc(bookingTime)}
             </span>
+
           </div>
 
         </div>
+
 
         <span class="suc-ref">
           Referência ·
           ${esc(
             bk.reference ||
-              "RG"
+            bk.id ||
+            ""
           )}
         </span>
+
 
         <div
           class="suc-actions"
@@ -1914,12 +2108,10 @@
             class="btn btn-gold"
             id="goBookings"
           >
-            ${
-              window.RGICONS
-                ?.calendar || ""
-            }
+            ${window.RGICONS.calendar}
             Ver minhas marcações
           </button>
+
 
           <button
             type="button"
@@ -1934,13 +2126,13 @@
       </div>
     `;
 
+
     body
-      .querySelector(
-        "#goBookings"
-      )
-      .addEventListener(
+      .querySelector("#goBookings")
+      ?.addEventListener(
         "click",
         () => {
+
           close();
 
           window.location.href =
@@ -1948,26 +2140,30 @@
         }
       );
 
+
     body
-      .querySelector(
-        "#closeBooking"
-      )
-      .addEventListener(
+      .querySelector("#closeBooking")
+      ?.addEventListener(
         "click",
         close
       );
   }
+
 
   /* ========================================================
      CONFIRMAR MARCAÇÃO
      ======================================================== */
 
   async function confirmBooking() {
+
     if (state.submitting) return;
+
 
     state.submitting = true;
 
+
     nextBtn.disabled = true;
+
 
     nextBtn.innerHTML = `
       <span
@@ -1984,82 +2180,78 @@
       </span>
     `;
 
+
     const barberName =
       state.barber
         ? state.barber.name
         : "Sem preferência";
 
-    /* Verificação final */
 
+    /*
+     * Verificação final.
+     */
     try {
+
       const taken =
         await Store.getTakenSlots(
           state.date
         );
 
-      const selectedTime =
-        normalizeTime(
-          state.time
-        );
 
       const clash =
         state.barber
           ? taken.some(
               (x) =>
-                normalizeTime(
-                  x.booking_time
-                ) ===
-                  selectedTime &&
                 String(
-                  x.barber_name ||
-                    ""
-                ) ===
+                  x.booking_time
+                ).slice(0, 5) ===
                   String(
-                    barberName
-                  )
+                    state.time
+                  ).slice(0, 5) &&
+                x.barber_name ===
+                  barberName
             )
           : taken.some(
               (x) =>
-                normalizeTime(
+                String(
                   x.booking_time
-                ) ===
-                selectedTime
+                ).slice(0, 5) ===
+                String(
+                  state.time
+                ).slice(0, 5)
             );
 
+
       if (clash) {
+
         window.showToast(
           "Este horário acabou de ficar ocupado. Escolhe outro.",
           "error"
         );
 
+
         state.time = null;
 
-        state.submitting =
-          false;
+        state.submitting = false;
 
         state.step = 3;
 
-        render();
-
-        return;
+        return render();
       }
+
     } catch (err) {
+
       console.warn(
-        "Não foi possível verificar disponibilidade:",
+        "Verificação de disponibilidade falhou:",
         err
       );
     }
 
-    /* Criar marcação */
 
     try {
+
       const booking =
         await Store.create({
-          nome:
-            state.nome.trim(),
-
-          email:
-            state.email,
 
           service_name:
             state.service.name,
@@ -2072,68 +2264,83 @@
 
           booking_time:
             state.time,
+
+          nome:
+            state.nome.trim(),
+
+          email:
+            state.email,
         });
 
-      /* Atualiza perfil */
 
+      /*
+       * Atualiza perfil.
+       */
       try {
-        await window.Auth.updateProfile(
-          {
-            nome:
-              state.nome.trim(),
 
-            telefone:
-              state.telefone.trim(),
-          }
-        );
+        await window.Auth.updateProfile({
+
+          nome:
+            state.nome.trim(),
+
+          telefone:
+            state.telefone.trim(),
+        });
+
       } catch (err) {
+
         console.warn(
           "Update profile falhou:",
           err?.message
         );
       }
 
+
       state.lastBooking =
         booking;
 
       state.step = 6;
 
-      state.submitting =
-        false;
+      state.submitting = false;
+
 
       window.showToast(
         "Marcação confirmada com sucesso!",
         "success"
       );
 
+
       render();
 
+
     } catch (err) {
+
       console.error(
-        "ERRO COMPLETO AO CRIAR MARCAÇÃO:",
+        "create booking error:",
         err
       );
 
-      state.submitting =
-        false;
 
-      nextBtn.disabled =
-        false;
+      state.submitting = false;
+
 
       window.showToast(
         "Não foi possível confirmar a marcação. Tenta novamente.",
         "error"
       );
 
+
       render();
     }
   }
+
 
   /* ========================================================
      ESCAPE
      ======================================================== */
 
   function esc(s) {
+
     return String(
       s ?? ""
     ).replace(
@@ -2145,9 +2352,10 @@
           ">": "&gt;",
           '"': "&quot;",
           "'": "&#039;",
-        }[c])
+        })[c]
     );
   }
+
 
   /* ========================================================
      EXPOSIÇÃO
@@ -2159,10 +2367,10 @@
     init,
   };
 
+
   document.addEventListener(
     "DOMContentLoaded",
-    () => {
-      init();
-    }
+    init
   );
+
 })();
