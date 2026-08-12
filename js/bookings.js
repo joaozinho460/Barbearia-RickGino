@@ -1,8 +1,7 @@
-```javascript
 /* ============================================================
    Barbearia RickGino — bookings.js
    Fluxo de marcação em 7 passos + camada de dados das
-   marcações ligada à tabela "booking" do Supabase.
+   marcações (utilizada pelo wizard e pelo painel de perfil).
    ============================================================ */
 
 "use strict";
@@ -14,20 +13,14 @@
   /* ========================================================
      BOOKINGS STORE
      ======================================================== */
-
   const Store = {
-
     async listAll() {
       const auth = window.Auth;
 
       if (auth.isDemo()) {
-        const all = JSON.parse(
-          localStorage.getItem("rg_bookings") || "[]"
-        );
-
+        const all = JSON.parse(localStorage.getItem("rg_bookings") || "[]");
         const prof = auth.getUser();
         if (!prof) return [];
-
         return all.filter((b) => b.user_id === prof.id);
       }
 
@@ -36,14 +29,13 @@
 
       const { data, error } = await auth
         .getClient()
-        .from("booking")
+        .from("bookings")
         .select("*")
-        .eq("used_id", user.id)
-        .order("Data", { ascending: false });
+        .order("booking_date", { ascending: false });
 
       if (error) throw error;
 
-      return (data || []).map(normalizeBooking);
+      return data || [];
     },
 
     async upcoming() {
@@ -57,33 +49,22 @@
             String(b.booking_date) >= today
         )
         .sort((a, b) =>
-          (a.booking_date + b.booking_time).localeCompare(
-            b.booking_date + a.booking_time
+          (a.booking_date + a.booking_time).localeCompare(
+            b.booking_date + b.booking_time
           )
         );
     },
 
     async byId(id) {
       const all = await Store.listAll();
-
       return (
-        all.find(
-          (b) => String(b.id) === String(id)
-        ) || null
+        all.find((b) => String(b.id) === String(id)) || null
       );
     },
 
     async create(payload) {
       const auth = window.Auth;
-      const user = auth.getUser();
-
-      if (!user) {
-        throw new Error("Utilizador não autenticado.");
-      }
-
       const reference = genReference();
-
-      /* ================= DEMO ================= */
 
       if (auth.isDemo()) {
         const all = JSON.parse(
@@ -93,23 +74,16 @@
         const now = new Date().toISOString();
 
         const rec = {
-          id:
-            "bk_" +
-            Math.random().toString(36).slice(2, 12),
-
-          user_id: user.id,
-
+          id: "bk_" + Math.random().toString(36).slice(2, 12),
+          user_id: auth.getUser().id,
           service_name: payload.service_name,
           barber_name: payload.barber_name,
           booking_date: payload.booking_date,
           booking_time: payload.booking_time,
-
           status: "confirmed",
-
           reference,
-
           created_at: now,
-          updated_at: now
+          updated_at: now,
         };
 
         all.push(rec);
@@ -122,7 +96,27 @@
         return rec;
       }
 
-      /* ================= SUPABASE ================= */
+      const user = auth.getUser();
+
+      if (!user) {
+        throw new Error("Utilizador não autenticado.");
+      }
+
+      /*
+       * IMPORTANTE:
+       * A tabela do Supabase que estás a usar chama-se "booking"
+       * e as colunas são:
+       * Nome
+       * E-mail
+       * Serviço
+       * Barbeiro
+       * Data
+       * Hora
+       * Status
+       * used_id
+       *
+       * Por isso o insert abaixo usa exatamente esses nomes.
+       */
 
       const { data, error } = await auth
         .getClient()
@@ -130,30 +124,39 @@
         .insert([
           {
             "Nome": payload.nome || "",
-            "E-mail": payload.email || "",
+            "E-mail": payload.email || user.email || "",
             "Serviço": payload.service_name || "",
             "Barbeiro": payload.barber_name || "",
             "Data": payload.booking_date,
             "Hora": payload.booking_time,
             "Status": "confirmada",
-            "used_id": user.id
-          }
+            used_id: user.id,
+          },
         ])
         .select()
         .single();
 
       if (error) {
-        console.error(
-          "Erro ao criar marcação no Supabase:",
-          error
-        );
-
+        console.error("Erro Supabase ao criar marcação:", error);
         throw error;
       }
 
+      /*
+       * Normaliza a resposta da tabela para o restante
+       * do sistema continuar funcionando.
+       */
       return {
-        ...normalizeBooking(data),
-        reference
+        ...data,
+        id: data.id,
+        user_id: data.used_id,
+        service_name: data["Serviço"],
+        barber_name: data["Barbeiro"],
+        booking_date: data["Data"],
+        booking_time: data["Hora"],
+        status: data["Status"],
+        reference:
+          data.reference ||
+          reference,
       };
     },
 
@@ -174,8 +177,7 @@
         }
 
         all[idx].status = "cancelled";
-        all[idx].updated_at =
-          new Date().toISOString();
+        all[idx].updated_at = new Date().toISOString();
 
         localStorage.setItem(
           "rg_bookings",
@@ -189,21 +191,24 @@
         .getClient()
         .from("booking")
         .update({
-          "Status": "cancelada"
+          "Status": "cancelada",
         })
         .eq("id", id)
-        .eq("used_id", auth.getUser().id)
         .select()
         .single();
 
       if (error) throw error;
 
-      return normalizeBooking(data);
+      return {
+        ...data,
+        user_id: data.used_id,
+        service_name: data["Serviço"],
+        barber_name: data["Barbeiro"],
+        booking_date: data["Data"],
+        booking_time: data["Hora"],
+        status: data["Status"],
+      };
     },
-
-    /* ======================================================
-       HORÁRIOS OCUPADOS
-       ====================================================== */
 
     async getTakenSlots(dateISO) {
       const auth = window.Auth;
@@ -221,79 +226,43 @@
           )
           .map((b) => ({
             booking_time: b.booking_time,
-            barber_name: b.barber_name
+            barber_name: b.barber_name,
           }));
       }
 
+      /*
+       * Consulta diretamente a tabela booking.
+       * Não depende da RPC para mostrar os horários.
+       */
       try {
         const { data, error } = await auth
           .getClient()
           .from("booking")
-          .select('"Hora","Barbeiro","Status"')
-          .eq('"Data"', dateISO)
-          .neq('"Status"', "cancelada");
+          .select('"Hora", "Barbeiro", "Status"')
+          .eq('"Data"', dateISO);
 
         if (error) throw error;
 
-        return (data || []).map((b) => ({
-          booking_time: normalizeTime(b["Hora"]),
-          barber_name: b["Barbeiro"] || ""
-        }));
+        return (data || [])
+          .filter(
+            (b) =>
+              b["Status"] !== "cancelada" &&
+              b["Status"] !== "cancelled"
+          )
+          .map((b) => ({
+            booking_time: String(b["Hora"] || "").slice(0, 5),
+            barber_name: b["Barbeiro"] || "",
+          }));
       } catch (err) {
-        console.error(
-          "Erro ao consultar horários:",
-          err
+        console.warn(
+          "Não foi possível consultar horários:",
+          err?.message
         );
 
         return [];
       }
-    }
+    },
   };
-
-  /* ========================================================
-     NORMALIZAÇÃO
-     ======================================================== */
-
-  function normalizeBooking(row) {
-    if (!row) return null;
-
-    return {
-      id: row.id,
-
-      user_id: row.used_id,
-
-      service_name: row["Serviço"] || "",
-      barber_name: row["Barbeiro"] || "",
-
-      booking_date: row["Data"] || null,
-      booking_time: normalizeTime(row["Hora"]),
-
-      status: normalizeStatus(row["Status"]),
-
-      nome: row["Nome"] || "",
-      email: row["E-mail"] || "",
-
-      created_at: row.created_at || null
-    };
-  }
-
-  function normalizeStatus(status) {
-    if (status === "confirmada") return "confirmed";
-    if (status === "cancelada") return "cancelled";
-    if (status === "pendente") return "pending";
-
-    return status || "pending";
-  }
-
-  function normalizeTime(value) {
-    if (!value) return "";
-
-    const str = String(value);
-
-    return str.length >= 5
-      ? str.substring(0, 5)
-      : str;
-  }
 
   function genReference() {
     const chars =
@@ -302,19 +271,14 @@
     let r = "";
 
     for (let i = 0; i < 6; i++) {
-      r +=
-        chars[
-          Math.floor(
-            Math.random() * chars.length
-          )
-        ];
+      r += chars[
+        Math.floor(Math.random() * chars.length)
+      ];
     }
 
     const d = new Date();
 
-    return `RG${String(
-      d.getFullYear()
-    ).slice(2)}${String(
+    return `RG${String(d.getFullYear()).slice(2)}${String(
       d.getMonth() + 1
     ).padStart(2, "0")}${String(
       d.getDate()
@@ -334,7 +298,7 @@
     "Horário",
     "Dados",
     "Resumo",
-    "Confirmado"
+    "Confirmado",
   ];
 
   const state = {
@@ -342,19 +306,14 @@
     service: null,
     barber: null,
     noBarberPref: true,
-
     date: null,
     time: null,
-
     nome: "",
     telefone: "",
     email: "",
-
     taken: [],
-
     submitting: false,
-
-    lastBooking: null
+    lastBooking: null,
   };
 
   let modal,
@@ -367,6 +326,17 @@
     stepLabel;
 
   function open(opts = {}) {
+    if (!modal) {
+      init();
+    }
+
+    if (!modal) {
+      console.error(
+        "Booking modal não encontrado."
+      );
+      return;
+    }
+
     resetState();
 
     if (opts.serviceId) {
@@ -382,16 +352,11 @@
           (t) => t.id === opts.barberId
         ) || null;
 
-      state.noBarberPref =
-        !state.barber;
+      state.noBarberPref = !state.barber;
     }
 
-    if (!modal) return;
-
     modal.classList.add("open");
-
-    document.body.style.overflow =
-      "hidden";
+    document.body.style.overflow = "hidden";
 
     render();
   }
@@ -400,32 +365,25 @@
     if (!modal) return;
 
     modal.classList.remove("open");
-
     document.body.style.overflow = "";
   }
 
   function resetState() {
     state.step = 0;
-
     state.service = null;
     state.barber = null;
     state.noBarberPref = true;
-
     state.date = null;
     state.time = null;
-
     state.taken = [];
-
     state.submitting = false;
-
     state.lastBooking = null;
   }
 
   function init() {
-    modal =
-      document.getElementById(
-        "bookingModal"
-      );
+    modal = document.getElementById(
+      "bookingModal"
+    );
 
     if (!modal) return;
 
@@ -492,7 +450,7 @@
       }
     );
 
-    backBtn.addEventListener(
+    backBtn?.addEventListener(
       "click",
       () => {
         if (state.step === 6) return;
@@ -507,7 +465,7 @@
       }
     );
 
-    nextBtn.addEventListener(
+    nextBtn?.addEventListener(
       "click",
       onNext
     );
@@ -517,22 +475,36 @@
       typeof window.Auth.setOnAuthChange ===
         "function"
     ) {
-      window.Auth.setOnAuthChange(() => {
-        if (
-          modal.classList.contains("open")
-        ) {
-          if (state.step === 4) {
-            refreshStepData();
-          }
+      window.Auth.setOnAuthChange(
+        () => {
+          if (
+            modal &&
+            modal.classList.contains("open")
+          ) {
+            if (state.step === 4) {
+              refreshStepData();
+            }
 
-          render();
+            render();
+          }
         }
-      });
+      );
     }
   }
 
   function render() {
-    if (!body) return;
+    if (
+      !modal ||
+      !body ||
+      !dots ||
+      !foot ||
+      !backBtn ||
+      !nextBtn ||
+      !stepLabel ||
+      !stepTitle
+    ) {
+      return;
+    }
 
     const s = state.step;
 
@@ -561,7 +533,7 @@
       stepTime,
       stepData,
       stepSummary,
-      stepSuccess
+      stepSuccess,
     ];
 
     try {
@@ -573,11 +545,8 @@
       );
 
       body.innerHTML = `
-        <div style="padding:25px;text-align:center">
+        <div class="b-error">
           <p>Não foi possível carregar este passo.</p>
-          <small>${esc(
-            err?.message || ""
-          )}</small>
         </div>
       `;
 
@@ -588,20 +557,29 @@
       s === 6 ? "none" : "flex";
 
     backBtn.style.visibility =
-      s === 0
-        ? "hidden"
-        : "visible";
+      s === 0 ? "hidden" : "visible";
 
     if (s === 5) {
-      nextBtn.innerHTML =
-        `${window.RGICONS.check}
-         <span>Confirmar marcação</span>`;
+      nextBtn.innerHTML = `
+        ${window.RGICONS.check}
+        <span>Confirmar marcação</span>
+      `;
+
+      nextBtn.classList.add(
+        "btn-gold"
+      );
 
       nextBtn.disabled =
         state.submitting;
     } else {
-      nextBtn.innerHTML =
-        `Continuar ${window.RGICONS.arrowRight}`;
+      nextBtn.innerHTML = `
+        Continuar
+        ${window.RGICONS.arrowRight}
+      `;
+
+      nextBtn.classList.add(
+        "btn-gold"
+      );
 
       nextBtn.disabled = false;
     }
@@ -626,7 +604,7 @@
       !state.barber
     ) {
       return window.showToast(
-        'Escolhe um barbeiro ou "Sem preferência".',
+        'Escolhe um barbeiro (ou "Sem preferência").',
         "info"
       );
     }
@@ -677,7 +655,7 @@
     }
 
     if (s === 5) {
-      await confirmBooking();
+      confirmBooking();
       return;
     }
 
@@ -685,6 +663,8 @@
 
     if (state.step === 4) {
       await refreshStepData();
+      render();
+      return;
     }
 
     render();
@@ -707,7 +687,7 @@
   }
 
   /* ========================================================
-     PASSO 1
+     PASSO 1 — SERVIÇO
      ======================================================== */
 
   function stepService() {
@@ -730,10 +710,7 @@
             </span>
 
             <span class="so-meta">
-              <span>
-                ${s.duration} min
-              </span>
-
+              <span>${s.duration} min</span>
               <span class="so-price">
                 ${s.price}€
               </span>
@@ -746,9 +723,7 @@
     `;
 
     body
-      .querySelectorAll(
-        ".service-opt"
-      )
+      .querySelectorAll(".service-opt")
       .forEach((btn) => {
         btn.addEventListener(
           "click",
@@ -776,17 +751,20 @@
   }
 
   /* ========================================================
-     PASSO 2
+     PASSO 2 — BARBEIRO
      ======================================================== */
 
   function stepBarber() {
+    const anySelected =
+      state.noBarberPref;
+
     body.innerHTML = `
       <div class="barber-options">
 
         <button
           type="button"
           class="barber-opt ${
-            state.noBarberPref
+            anySelected
               ? "selected"
               : ""
           }"
@@ -846,9 +824,7 @@
     `;
 
     body
-      .querySelectorAll(
-        ".barber-opt"
-      )
+      .querySelectorAll(".barber-opt")
       .forEach((btn) => {
         btn.addEventListener(
           "click",
@@ -896,47 +872,41 @@
 
     const now = new Date();
 
-    const start = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      1
-    );
+    /*
+     * Mostra o mês atual completo a partir de hoje.
+     * Dias que já passaram ficam bloqueados.
+     * Depois continua automaticamente para os meses seguintes.
+     */
 
-    const end = new Date(
-      now.getFullYear(),
-      now.getMonth() + 2,
-      0
-    );
+    const start =
+      new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        1
+      );
 
     const totalDays =
-      Math.max(
-        D.bookingDaysAhead || 31,
-        end.getDate()
-      );
+      D.bookingDaysAhead || 90;
 
     for (
       let i = 0;
       i < totalDays;
       i++
     ) {
-      const d = new Date(
-        start.getFullYear(),
-        start.getMonth(),
-        1 + i
-      );
+      const d =
+        new Date(start);
 
-      const iso =
-        RG.toISODate(d);
+      d.setDate(
+        start.getDate() + i
+      );
 
       const dow =
         d.getDay();
 
-      const closed =
-        (D.bookingClosedWeekdays ||
-          []
-        ).includes(dow);
+      const date =
+        RG.toISODate(d);
 
-      const passed =
+      const isPast =
         d <
         new Date(
           now.getFullYear(),
@@ -944,11 +914,17 @@
           now.getDate()
         );
 
+      const closed =
+        (D.bookingClosedWeekdays ||
+          []
+        ).includes(dow);
+
       days.push({
-        date: iso,
+        date,
         dow,
-        closed,
-        passed
+        closed:
+          closed || isPast,
+        isPast,
       });
     }
 
@@ -959,7 +935,7 @@
       "Qua",
       "Qui",
       "Sex",
-      "Sáb"
+      "Sáb",
     ];
 
     const monNames = [
@@ -974,22 +950,17 @@
       "Set",
       "Out",
       "Nov",
-      "Dez"
+      "Dez",
     ];
 
     body.innerHTML = `
       <div class="date-options">
-
         ${days
           .map((d) => {
             const dt =
               RG.parseISO(
                 d.date
               );
-
-            const disabled =
-              d.closed ||
-              d.passed;
 
             const sel =
               state.date ===
@@ -1003,20 +974,23 @@
                     ? "selected"
                     : ""
                 } ${
-                  disabled
+                  d.closed
                     ? "disabled"
                     : ""
                 }"
                 data-date="${d.date}"
                 ${
-                  disabled
+                  d.closed
                     ? "disabled"
                     : ""
                 }
               >
-
                 <span class="dow">
-                  ${dowNames[d.dow]}
+                  ${
+                    dowNames[
+                      d.dow
+                    ]
+                  }
                 </span>
 
                 <span class="day">
@@ -1024,16 +998,16 @@
                 </span>
 
                 <span class="mon">
-                  ${monNames[
-                    dt.getMonth()
-                  ]}
+                  ${
+                    monNames[
+                      dt.getMonth()
+                    ]
+                  }
                 </span>
-
               </button>
             `;
           })
           .join("")}
-
       </div>
 
       <p
@@ -1044,19 +1018,26 @@
         "
       >
         ${window.RGICONS.info}
-        Os dias anteriores e os dias
-        encerrados ficam bloqueados.
+        Os dias que já passaram e os dias
+        encerrados aparecem bloqueados.
       </p>
     `;
 
     body
-      .querySelectorAll(
-        ".date-opt:not([disabled])"
-      )
+      .querySelectorAll(".date-opt")
       .forEach((btn) => {
         btn.addEventListener(
           "click",
           () => {
+            if (
+              btn.disabled ||
+              btn.classList.contains(
+                "disabled"
+              )
+            ) {
+              return;
+            }
+
             state.date =
               btn.dataset.date;
 
@@ -1091,7 +1072,7 @@
       <div class="b-loading">
         <div class="spinner"></div>
         <p>
-          A consultar disponibilidade…
+          A consultar disponibilidade...
         </p>
       </div>
     `;
@@ -1102,8 +1083,8 @@
           state.date
         );
     } catch (err) {
-      console.error(err);
       state.taken = [];
+      console.warn(err);
     }
 
     const taken =
@@ -1116,17 +1097,15 @@
       state.barber
         ? taken.some(
             (x) =>
-              normalizeTime(
-                x.booking_time
-              ) === t &&
+              x.booking_time ===
+                t &&
               x.barber_name ===
                 state.barber.name
           )
         : taken.some(
             (x) =>
-              normalizeTime(
-                x.booking_time
-              ) === t
+              x.booking_time ===
+              t
           );
 
     body.innerHTML = `
@@ -1143,48 +1122,48 @@
       </div>
 
       <div class="time-options">
-
         ${slots
-          .map((t) => {
-            const occupied =
-              timeTaken(t);
+          .map(
+            (t) => {
+              const occupied =
+                timeTaken(t);
 
-            return `
-              <button
-                type="button"
-                class="time-opt ${
-                  state.time === t
-                    ? "selected"
-                    : ""
-                } ${
-                  occupied
-                    ? "disabled"
-                    : ""
-                }"
-                data-time="${t}"
-                ${
-                  occupied
-                    ? "disabled"
-                    : ""
-                }
-              >
-                ${t}
-              </button>
-            `;
-          })
+              return `
+                <button
+                  type="button"
+                  class="time-opt ${
+                    state.time === t
+                      ? "selected"
+                      : ""
+                  } ${
+                    occupied
+                      ? "disabled"
+                      : ""
+                  }"
+                  data-time="${t}"
+                  ${
+                    occupied
+                      ? "disabled"
+                      : ""
+                  }
+                >
+                  ${t}
+                </button>
+              `;
+            }
+          )
           .join("")}
-
       </div>
     `;
 
     body
-      .querySelectorAll(
-        ".time-opt:not([disabled])"
-      )
+      .querySelectorAll(".time-opt")
       .forEach((btn) => {
         btn.addEventListener(
           "click",
           () => {
+            if (btn.disabled) return;
+
             state.time =
               btn.dataset.time;
 
@@ -1347,9 +1326,10 @@
       !state.time
     ) {
       body.innerHTML = `
-        <div style="padding:25px;text-align:center">
+        <div class="b-error">
           <p>
-            Falta selecionar algum dado da marcação.
+            Seleciona o serviço, a data
+            e o horário antes de continuar.
           </p>
         </div>
       `;
@@ -1364,7 +1344,7 @@
 
     const b =
       state.barber || {
-        name: "Sem preferência"
+        name: "Sem preferência",
       };
 
     body.innerHTML = `
@@ -1381,10 +1361,8 @@
             )}
 
             <span class="sub">
-              ${
-                state.service
-                  .duration
-              } min
+              ${state.service.duration}
+              min
             </span>
           </span>
         </div>
@@ -1408,12 +1386,8 @@
             ${dt
               .getDate()
               .toString()
-              .padStart(
-                2,
-                "0"
-              )}/${(
-              dt.getMonth() +
-              1
+              .padStart(2, "0")}/${(
+              dt.getMonth() + 1
             )
               .toString()
               .padStart(
@@ -1453,10 +1427,7 @@
           </span>
 
           <span class="v">
-            ${
-              state.service
-                .price
-            }€
+            ${state.service.price}€
           </span>
         </div>
 
@@ -1465,7 +1436,7 @@
   }
 
   /* ========================================================
-     PASSO 7 — SUCESSO
+     PASSO 7 — CONFIRMAÇÃO
      ======================================================== */
 
   function stepSuccess() {
@@ -1474,9 +1445,10 @@
 
     if (!bk) {
       body.innerHTML = `
-        <div style="padding:25px;text-align:center">
+        <div class="b-error">
           <p>
-            Marcação não encontrada.
+            Não foi possível carregar
+            os dados da marcação.
           </p>
         </div>
       `;
@@ -1486,11 +1458,20 @@
 
     const b =
       bk.barber_name ||
-      "Sem preferência";
+      bk["Barbeiro"] ||
+      "—";
+
+    const bookingDate =
+      bk.booking_date ||
+      bk["Data"];
+
+    const bookingTime =
+      bk.booking_time ||
+      bk["Hora"];
 
     const dt =
       RG.parseISO(
-        bk.booking_date
+        bookingDate
       );
 
     body.innerHTML = `
@@ -1506,8 +1487,8 @@
         </h3>
 
         <p>
-          Obrigado! A tua marcação foi
-          registada com sucesso.
+          Obrigado! Enviámos-te a confirmação.
+          Vemo-nos na barbearia.
         </p>
 
         <div class="b-summary suc-card">
@@ -1519,7 +1500,9 @@
 
             <span class="v">
               ${esc(
-                bk.service_name
+                bk.service_name ||
+                  bk["Serviço"] ||
+                  ""
               )}
             </span>
           </div>
@@ -1547,8 +1530,7 @@
                   2,
                   "0"
                 )}/${(
-                dt.getMonth() +
-                1
+                dt.getMonth() + 1
               )
                 .toString()
                 .padStart(
@@ -1565,12 +1547,21 @@
 
             <span class="v">
               ${esc(
-                bk.booking_time
+                bookingTime || ""
               )}
             </span>
           </div>
 
         </div>
+
+        <span class="suc-ref">
+          Referência ·
+          ${esc(
+            bk.reference ||
+              bk.id ||
+              ""
+          )}
+        </span>
 
         <div
           class="suc-actions"
@@ -1628,8 +1619,7 @@
      ======================================================== */
 
   async function confirmBooking() {
-    if (state.submitting)
-      return;
+    if (state.submitting) return;
 
     state.submitting = true;
 
@@ -1655,8 +1645,6 @@
         ? state.barber.name
         : "Sem preferência";
 
-    /* Verificação final */
-
     try {
       const taken =
         await Store.getTakenSlots(
@@ -1667,18 +1655,14 @@
         state.barber
           ? taken.some(
               (x) =>
-                normalizeTime(
-                  x.booking_time
-                ) ===
+                x.booking_time ===
                   state.time &&
                 x.barber_name ===
                   barberName
             )
           : taken.some(
               (x) =>
-                normalizeTime(
-                  x.booking_time
-                ) ===
+                x.booking_time ===
                 state.time
             );
 
@@ -1705,13 +1689,21 @@
       const user =
         window.Auth.getUser();
 
+      if (!user) {
+        throw new Error(
+          "Utilizador não autenticado."
+        );
+      }
+
       const booking =
         await Store.create({
           nome:
             state.nome.trim(),
 
           email:
-            state.email.trim(),
+            state.email ||
+            user.email ||
+            "",
 
           service_name:
             state.service.name,
@@ -1723,10 +1715,8 @@
             state.date,
 
           booking_time:
-            state.time
+            state.time,
         });
-
-      /* Atualiza perfil */
 
       try {
         await window.Auth.updateProfile(
@@ -1735,13 +1725,13 @@
               state.nome.trim(),
 
             telefone:
-              state.telefone.trim()
+              state.telefone.trim(),
           }
         );
       } catch (err) {
         console.warn(
           "Update profile falhou:",
-          err
+          err?.message
         );
       }
 
@@ -1765,15 +1755,12 @@
         err
       );
 
-      state.submitting = false;
-
-      nextBtn.disabled =
-        false;
-
       window.showToast(
         "Não foi possível confirmar a marcação. Tenta novamente.",
         "error"
       );
+
+      state.submitting = false;
 
       render();
     }
@@ -1794,8 +1781,8 @@
           "<": "&lt;",
           ">": "&gt;",
           '"': "&quot;",
-          "'": "&#039;"
-        })[c]
+          "'": "&#039;",
+        }[c])
     );
   }
 
@@ -1806,12 +1793,51 @@
   window.BookingFlow = {
     open,
     close,
-    init
+    init,
   };
+
+  /* ========================================================
+     CORREÇÃO DO BOTÃO "MARCAR AGORA"
+     
+     Isto funciona mesmo quando o botão é criado
+     dinamicamente pelo auth.js.
+     ======================================================== */
+
+  document.addEventListener(
+    "click",
+    (e) => {
+      const btn =
+        e.target.closest(
+          "[data-book]"
+        );
+
+      if (!btn) return;
+
+      e.preventDefault();
+
+      /*
+       * Se o modal ainda não tiver sido inicializado,
+       * inicializa primeiro.
+       */
+      if (!modal) {
+        init();
+      }
+
+      /*
+       * Depois abre normalmente o wizard.
+       */
+      if (modal) {
+        open();
+      }
+    }
+  );
+
+  /* ========================================================
+     DOM READY
+     ======================================================== */
 
   document.addEventListener(
     "DOMContentLoaded",
     init
   );
 })();
-```
