@@ -1,7 +1,6 @@
 /* ============================================================
    Barbearia RickGino — bookings.js
-   Fluxo de marcação em 7 passos + camada de dados das
-   marcações (utilizada pelo wizard e pelo painel de perfil).
+   Fluxo de marcação em 7 passos + camada de dados
    ============================================================ */
 
 "use strict";
@@ -12,11 +11,20 @@
 
   /* ========================================================
      BOOKINGS STORE
-     Supabase:
-     tabela: booking
-     colunas:
-     id, created_at, Nome, E-mail, Serviço, Barbeiro,
-     Data, Hora, Status, used_id
+     Tabela real do Supabase:
+       public.booking
+
+     Colunas:
+       id
+       created_at
+       Nome
+       E-mail
+       Serviço
+       Barbeiro
+       Data
+       Hora
+       Status
+       used_id
      ======================================================== */
 
   const Store = {
@@ -30,12 +38,16 @@
         );
 
         const prof = auth.getUser();
+
         if (!prof) return [];
 
-        return all.filter((b) => b.user_id === prof.id);
+        return all.filter(
+          (b) => b.user_id === prof.id
+        );
       }
 
       const user = auth.getUser();
+
       if (!user) return [];
 
       const { data, error } = await auth
@@ -60,19 +72,21 @@
 
       return all
         .filter((b) => {
-          const status = String(b["Status"] || "").toLowerCase();
+          const status = String(b.Status || "").toLowerCase();
 
           return (
-            (status === "confirmada" || status === "confirmed") &&
-            String(b["Data"]) >= today
+            status === "confirmada" &&
+            String(b.Data) >= today
           );
         })
         .sort((a, b) => {
           const dateA =
-            String(a["Data"] || "") + String(a["Hora"] || "");
+            String(a.Data || "") +
+            String(a.Hora || "");
 
           const dateB =
-            String(b["Data"] || "") + String(b["Hora"] || "");
+            String(b.Data || "") +
+            String(b.Hora || "");
 
           return dateA.localeCompare(dateB);
         });
@@ -94,11 +108,6 @@
 
     async create(payload) {
       const auth = window.Auth;
-      const user = auth.getUser();
-
-      if (!user) {
-        throw new Error("Utilizador não autenticado.");
-      }
 
       const reference = genReference();
 
@@ -108,6 +117,12 @@
         const all = JSON.parse(
           localStorage.getItem("rg_bookings") || "[]"
         );
+
+        const user = auth.getUser();
+
+        if (!user) {
+          throw new Error("Utilizador não autenticado.");
+        }
 
         const now = new Date().toISOString();
 
@@ -120,13 +135,17 @@
 
           user_id: user.id,
 
-          service_name: payload.service_name,
+          service_name:
+            payload.service_name,
 
-          barber_name: payload.barber_name,
+          barber_name:
+            payload.barber_name,
 
-          booking_date: payload.booking_date,
+          booking_date:
+            payload.booking_date,
 
-          booking_time: payload.booking_time,
+          booking_time:
+            payload.booking_time,
 
           status: "confirmed",
 
@@ -149,21 +168,65 @@
 
       /* ---------------- SUPABASE ---------------- */
 
+      const user = auth.getUser();
+
+      if (!user) {
+        throw new Error(
+          "Utilizador não autenticado."
+        );
+      }
+
+      const client = auth.getClient();
+
+      if (!client) {
+        throw new Error(
+          "Supabase não inicializado."
+        );
+      }
+
+      /*
+        IMPORTANTE:
+        Os nomes abaixo correspondem EXATAMENTE
+        às colunas da tua tabela public.booking.
+      */
+
       const record = {
-        "Nome": payload.nome || user.user_metadata?.full_name || "",
-        "E-mail": payload.email || user.email || "",
-        "Serviço": payload.service_name || "",
-        "Barbeiro": payload.barber_name || "",
-        "Data": payload.booking_date,
-        "Hora": payload.booking_time,
-        "Status": "confirmada",
-        "used_id": user.id,
+        "Nome":
+          payload.nome ||
+          user.user_metadata?.full_name ||
+          user.user_metadata?.name ||
+          "Utilizador",
+
+        "E-mail":
+          payload.email ||
+          user.email ||
+          "",
+
+        "Serviço":
+          payload.service_name || "",
+
+        "Barbeiro":
+          payload.barber_name || "",
+
+        "Data":
+          payload.booking_date,
+
+        "Hora":
+          payload.booking_time,
+
+        "Status":
+          "confirmada",
+
+        "used_id":
+          user.id,
       };
 
-      console.log("A criar marcação:", record);
+      console.log(
+        "A enviar marcação para Supabase:",
+        record
+      );
 
-      const { data, error } = await auth
-        .getClient()
+      const { data, error } = await client
         .from("booking")
         .insert([record])
         .select()
@@ -171,7 +234,7 @@
 
       if (error) {
         console.error(
-          "ERRO SUPABASE AO CRIAR MARCAÇÃO:",
+          "ERRO AO CRIAR MARCAÇÃO:",
           error
         );
 
@@ -179,25 +242,21 @@
       }
 
       /*
-       * A tabela não tem coluna reference.
-       * Guardamos a referência apenas no objeto local
-       * para poder mostrar na confirmação.
-       */
+        Mantemos a referência no objeto para
+        aparecer na confirmação.
+      */
 
-      return {
-        ...data,
-        reference,
-        service_name: data["Serviço"],
-        barber_name: data["Barbeiro"],
-        booking_date: data["Data"],
-        booking_time: data["Hora"],
-      };
+      if (data) {
+        data.reference = reference;
+      }
+
+      return data;
     },
 
     /* ======================================================
        CANCELAR
-       Nunca elimina.
-       Apenas altera Status.
+       Nunca apaga a marcação.
+       Apenas muda Status para cancelada.
        ====================================================== */
 
     async cancel(id) {
@@ -213,10 +272,13 @@
         );
 
         if (idx === -1) {
-          throw new Error("Marcação não encontrada.");
+          throw new Error(
+            "Marcação não encontrada."
+          );
         }
 
         all[idx].status = "cancelled";
+
         all[idx].updated_at =
           new Date().toISOString();
 
@@ -228,6 +290,14 @@
         return all[idx];
       }
 
+      const user = auth.getUser();
+
+      if (!user) {
+        throw new Error(
+          "Utilizador não autenticado."
+        );
+      }
+
       const { data, error } = await auth
         .getClient()
         .from("booking")
@@ -235,7 +305,7 @@
           "Status": "cancelada",
         })
         .eq("id", id)
-        .eq("used_id", auth.getUser().id)
+        .eq("used_id", user.id)
         .select()
         .single();
 
@@ -248,21 +318,19 @@
         throw error;
       }
 
-      return {
-        ...data,
-        service_name: data["Serviço"],
-        barber_name: data["Barbeiro"],
-        booking_date: data["Data"],
-        booking_time: data["Hora"],
-      };
+      return data;
     },
 
     /* ======================================================
        HORÁRIOS OCUPADOS
+       Consulta diretamente public.booking.
+       Não depende de RPC.
        ====================================================== */
 
     async getTakenSlots(dateISO) {
       const auth = window.Auth;
+
+      /* ---------------- DEMO ---------------- */
 
       if (auth.isDemo()) {
         const all = JSON.parse(
@@ -273,55 +341,80 @@
           .filter(
             (b) =>
               b.status !== "cancelled" &&
-              String(b.booking_date) === dateISO
+              String(b.booking_date) ===
+                String(dateISO)
           )
           .map((b) => ({
-            booking_time: b.booking_time,
-            barber_name: b.barber_name,
+            booking_time:
+              b.booking_time,
+
+            barber_name:
+              b.barber_name,
           }));
       }
 
-      try {
-        const { data, error } = await auth
-          .getClient()
-          .from("booking")
-          .select('"Hora", "Barbeiro", "Status"')
-          .eq("Data", dateISO);
+      /* ---------------- SUPABASE ---------------- */
 
-        if (error) {
-          console.error(
-            "Erro ao consultar horários:",
-            error
-          );
+      const client = auth.getClient();
 
-          throw error;
-        }
+      if (!client) {
+        throw new Error(
+          "Supabase não inicializado."
+        );
+      }
 
-        return (data || [])
-          .filter((b) => {
-            const status = String(
-              b["Status"] || ""
-            ).toLowerCase();
+      const { data, error } = await client
+        .from("booking")
+        .select('"Hora", "Barbeiro", "Status"')
+        .eq('"Data"', dateISO);
 
-            return (
-              status !== "cancelada" &&
-              status !== "cancelled"
-            );
-          })
-          .map((b) => ({
-            booking_time: b["Hora"],
-            barber_name: b["Barbeiro"],
-          }));
-      } catch (err) {
-        console.warn(
-          "Não foi possível consultar horários:",
-          err?.message
+      if (error) {
+        console.error(
+          "Erro ao consultar horários:",
+          error
         );
 
-        return [];
+        throw error;
       }
+
+      return (data || [])
+        .filter((b) => {
+          const status = String(
+            b.Status || ""
+          ).toLowerCase();
+
+          return (
+            status !== "cancelada" &&
+            status !== "cancelled"
+          );
+        })
+        .map((b) => ({
+          booking_time:
+            normalizeTime(b["Hora"]),
+
+          barber_name:
+            b["Barbeiro"] || "",
+        }));
     },
   };
+
+  function normalizeTime(value) {
+    if (!value) return "";
+
+    const str = String(value);
+
+    /*
+      PostgreSQL time pode voltar:
+      16:30
+      ou
+      16:30:00
+
+      O site usa:
+      16:30
+    */
+
+    return str.slice(0, 5);
+  }
 
   function genReference() {
     const chars =
@@ -330,12 +423,11 @@
     let r = "";
 
     for (let i = 0; i < 6; i++) {
-      r +=
-        chars[
-          Math.floor(
-            Math.random() * chars.length
-          )
-        ];
+      r += chars[
+        Math.floor(
+          Math.random() * chars.length
+        )
+      ];
     }
 
     const d = new Date();
@@ -367,30 +459,56 @@
 
   const state = {
     step: 0,
+
     service: null,
+
     barber: null,
+
     noBarberPref: true,
+
     date: null,
+
     time: null,
+
     nome: "",
+
     telefone: "",
+
     email: "",
+
     taken: [],
+
     submitting: false,
+
     lastBooking: null,
   };
 
-  let modal,
-    body,
-    dots,
-    foot,
-    backBtn,
-    nextBtn,
-    stepTitle,
-    stepLabel;
+  let modal;
+  let body;
+  let dots;
+  let foot;
+  let backBtn;
+  let nextBtn;
+  let stepTitle;
+  let stepLabel;
+
+  /* ========================================================
+     OPEN
+     ======================================================== */
 
   function open(opts = {}) {
     resetState();
+
+    if (!modal) {
+      init();
+    }
+
+    if (!modal) {
+      console.error(
+        "bookingModal não encontrado."
+      );
+      return;
+    }
 
     if (opts.serviceId) {
       state.service =
@@ -405,19 +523,14 @@
           (t) => t.id === opts.barberId
         ) || null;
 
-      state.noBarberPref = !state.barber;
-    }
-
-    if (!modal) {
-      console.error(
-        "bookingModal não encontrado."
-      );
-      return;
+      state.noBarberPref =
+        !state.barber;
     }
 
     modal.classList.add("open");
 
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow =
+      "hidden";
 
     render();
   }
@@ -432,15 +545,33 @@
 
   function resetState() {
     state.step = 0;
+
     state.service = null;
+
     state.barber = null;
+
     state.noBarberPref = true;
+
     state.date = null;
+
     state.time = null;
+
     state.taken = [];
+
     state.submitting = false;
+
     state.lastBooking = null;
+
+    state.nome = "";
+
+    state.telefone = "";
+
+    state.email = "";
   }
+
+  /* ========================================================
+     INIT
+     ======================================================== */
 
   function init() {
     modal =
@@ -506,7 +637,9 @@
       (e) => {
         if (
           e.key === "Escape" &&
-          modal.classList.contains("open")
+          modal.classList.contains(
+            "open"
+          )
         ) {
           close();
         }
@@ -533,6 +666,55 @@
       onNext
     );
 
+    /*
+      GARANTE QUE OS BOTÕES
+      "Marcar agora" ABREM O WIZARD.
+    */
+
+    document
+      .querySelectorAll(
+        "[data-book]"
+      )
+      .forEach((btn) => {
+        btn.addEventListener(
+          "click",
+          (e) => {
+            e.preventDefault();
+
+            open();
+          }
+        );
+      });
+
+    /*
+      Também aceita elementos
+      com id/class comuns.
+    */
+
+    document
+      .querySelectorAll(
+        ".book-now, .marcar-agora"
+      )
+      .forEach((btn) => {
+        if (
+          btn.dataset.bookingBound
+        ) {
+          return;
+        }
+
+        btn.dataset.bookingBound =
+          "true";
+
+        btn.addEventListener(
+          "click",
+          (e) => {
+            e.preventDefault();
+
+            open();
+          }
+        );
+      });
+
     if (
       window.Auth &&
       typeof window.Auth.setOnAuthChange ===
@@ -556,11 +738,17 @@
     }
   }
 
+  /* ========================================================
+     RENDER
+     ======================================================== */
+
   function render() {
     if (
+      !modal ||
       !body ||
       !dots ||
       !foot ||
+      !backBtn ||
       !nextBtn
     ) {
       return;
@@ -574,14 +762,15 @@
     stepTitle.textContent =
       Steps[s];
 
-    dots.innerHTML = Steps.map(
-      (_, i) =>
-        `<span class="step-dot ${
-          i === s ? "active" : ""
-        } ${
-          i < s ? "done" : ""
-        }"></span>`
-    ).join("");
+    dots.innerHTML =
+      Steps.map(
+        (_, i) =>
+          `<span class="step-dot ${
+            i === s ? "active" : ""
+          } ${
+            i < s ? "done" : ""
+          }"></span>`
+      ).join("");
 
     body.innerHTML = "";
 
@@ -627,21 +816,40 @@
 
     if (s === 5) {
       nextBtn.innerHTML = `
-        ${window.RGICONS.check}
-        <span>Confirmar marcação</span>
+        ${
+          window.RGICONS?.check || ""
+        }
+        <span>
+          Confirmar marcação
+        </span>
       `;
+
+      nextBtn.classList.add(
+        "btn-gold"
+      );
 
       nextBtn.disabled =
         state.submitting;
     } else {
       nextBtn.innerHTML = `
         Continuar
-        ${window.RGICONS.arrowRight}
+        ${
+          window.RGICONS?.arrowRight ||
+          ""
+        }
       `;
+
+      nextBtn.classList.add(
+        "btn-gold"
+      );
 
       nextBtn.disabled = false;
     }
   }
+
+  /* ========================================================
+     NEXT
+     ======================================================== */
 
   async function onNext() {
     const s = state.step;
@@ -662,7 +870,7 @@
       !state.barber
     ) {
       return window.showToast(
-        'Escolhe um barbeiro (ou "Sem preferência").',
+        'Escolhe um barbeiro ou "Sem preferência".',
         "info"
       );
     }
@@ -697,14 +905,18 @@
         );
       }
 
-      if (!state.nome.trim()) {
+      if (
+        !state.nome.trim()
+      ) {
         return window.showToast(
           "Indica o teu nome.",
           "error"
         );
       }
 
-      if (!state.telefone.trim()) {
+      if (
+        !state.telefone.trim()
+      ) {
         return window.showToast(
           "Indica o teu telefone.",
           "error"
@@ -713,7 +925,7 @@
     }
 
     if (s === 5) {
-      confirmBooking();
+      await confirmBooking();
       return;
     }
 
@@ -721,10 +933,18 @@
 
     if (state.step === 4) {
       await refreshStepData();
+
+      render();
+
+      return;
     }
 
     render();
   }
+
+  /* ========================================================
+     PERFIL
+     ======================================================== */
 
   async function refreshStepData() {
     try {
@@ -750,38 +970,49 @@
   }
 
   /* ========================================================
-     PASSO 1 — SERVIÇO
+     PASSO 1
      ======================================================== */
 
   function stepService() {
     body.innerHTML = `
       <div class="service-options">
-        ${D.services
-          .map(
-            (s) => `
-          <button
-            type="button"
-            class="service-opt ${
-              state.service?.id === s.id
-                ? "selected"
-                : ""
-            }"
-            data-svc="${esc(s.id)}"
-          >
-            <span class="so-name">
-              ${esc(s.name)}
-            </span>
 
-            <span class="so-meta">
-              <span>${s.duration} min</span>
-              <span class="so-price">
-                ${s.price}€
-              </span>
-            </span>
-          </button>
-        `
-          )
-          .join("")}
+        ${
+          D.services
+            .map(
+              (s) => `
+                <button
+                  type="button"
+                  class="service-opt ${
+                    state.service?.id === s.id
+                      ? "selected"
+                      : ""
+                  }"
+                  data-svc="${esc(
+                    s.id
+                  )}"
+                >
+
+                  <span class="so-name">
+                    ${esc(s.name)}
+                  </span>
+
+                  <span class="so-meta">
+                    <span>
+                      ${s.duration} min
+                    </span>
+
+                    <span class="so-price">
+                      ${s.price}€
+                    </span>
+                  </span>
+
+                </button>
+              `
+            )
+            .join("")
+        }
+
       </div>
     `;
 
@@ -789,7 +1020,7 @@
       .querySelectorAll(
         ".service-opt"
       )
-      .forEach((btn) =>
+      .forEach((btn) => {
         btn.addEventListener(
           "click",
           () => {
@@ -811,12 +1042,12 @@
                 )
               );
           }
-        )
-      );
+        );
+      });
   }
 
   /* ========================================================
-     PASSO 2 — BARBEIRO
+     PASSO 2
      ======================================================== */
 
   function stepBarber() {
@@ -836,7 +1067,10 @@
           data-barber="any"
         >
           <span class="bo-avatar">
-            ${window.RGICONS.scissors}
+            ${
+              window.RGICONS
+                ?.scissors || ""
+            }
           </span>
 
           <span class="bo-name">
@@ -848,46 +1082,55 @@
           </span>
         </button>
 
-        ${D.team
-          .map(
-            (t) => `
-          <button
-            type="button"
-            class="barber-opt ${
-              state.barber?.id ===
-              t.id
-                ? "selected"
-                : ""
-            }"
-            data-barber="${esc(
-              t.id
-            )}"
-          >
-            <span class="bo-avatar">
-              ${
-                t.photo
-                  ? `<img src="${esc(
+        ${
+          D.team
+            .map(
+              (t) => `
+                <button
+                  type="button"
+                  class="barber-opt ${
+                    state.barber?.id ===
+                    t.id
+                      ? "selected"
+                      : ""
+                  }"
+                  data-barber="${esc(
+                    t.id
+                  )}"
+                >
+
+                  <span class="bo-avatar">
+
+                    ${
                       t.photo
-                    )}" alt="">`
-                  : window.RG.initials(
-                      t.name
-                    )
-              }
-            </span>
+                        ? `<img
+                            src="${esc(
+                              t.photo
+                            )}"
+                            alt=""
+                          >`
+                        : window.RG.initials(
+                            t.name
+                          )
+                    }
 
-            <span class="bo-name">
-              ${esc(t.name)}
-            </span>
+                  </span>
 
-            <span class="bo-spec">
-              ${esc(
-                t.specialty
-              )}
-            </span>
-          </button>
-        `
-          )
-          .join("")}
+                  <span class="bo-name">
+                    ${esc(t.name)}
+                  </span>
+
+                  <span class="bo-spec">
+                    ${esc(
+                      t.specialty
+                    )}
+                  </span>
+
+                </button>
+              `
+            )
+            .join("")
+        }
 
       </div>
     `;
@@ -896,7 +1139,7 @@
       .querySelectorAll(
         ".barber-opt"
       )
-      .forEach((btn) =>
+      .forEach((btn) => {
         btn.addEventListener(
           "click",
           () => {
@@ -905,7 +1148,9 @@
               "any"
             ) {
               state.barber = null;
-              state.noBarberPref = true;
+
+              state.noBarberPref =
+                true;
             } else {
               state.barber =
                 D.team.find(
@@ -929,15 +1174,13 @@
                 )
               );
           }
-        )
-      );
+        );
+      });
   }
 
   /* ========================================================
      PASSO 3 — DATA
-
-     ESTA PARTE FOI MANTIDA COM A MESMA LÓGICA
-     DO TEU CÓDIGO.
+     Mantido como estava no teu código.
      ======================================================== */
 
   function stepDate() {
@@ -948,8 +1191,7 @@
     for (
       let i = 0;
       i <
-      (D.bookingDaysAhead ||
-        14);
+      (D.bookingDaysAhead || 14);
       i++
     ) {
       const d =
@@ -967,7 +1209,9 @@
       days.push({
         date:
           RG.toISODate(d),
+
         dow,
+
         closed,
       });
     }
@@ -999,6 +1243,7 @@
 
     body.innerHTML = `
       <div class="date-options">
+
         ${days
           .map((d) => {
             const dt =
@@ -1023,14 +1268,14 @@
                     : ""
                 }"
                 data-date="${d.date}"
-                ${
-                  d.closed
-                    ? "disabled"
-                    : ""
-                }
               >
+
                 <span class="dow">
-                  ${dowNames[d.dow]}
+                  ${
+                    dowNames[
+                      d.dow
+                    ]
+                  }
                 </span>
 
                 <span class="day">
@@ -1044,10 +1289,12 @@
                     ]
                   }
                 </span>
+
               </button>
             `;
           })
           .join("")}
+
       </div>
 
       <p
@@ -1058,7 +1305,8 @@
         "
       >
         ${
-          window.RGICONS.info
+          window.RGICONS?.info ||
+          ""
         }
         Os dias encerrados aparecem esbatidos.
       </p>
@@ -1068,7 +1316,7 @@
       .querySelectorAll(
         ".date-opt"
       )
-      .forEach((btn) =>
+      .forEach((btn) => {
         btn.addEventListener(
           "click",
           () => {
@@ -1096,8 +1344,8 @@
                 )
               );
           }
-        )
-      );
+        );
+      });
   }
 
   /* ========================================================
@@ -1107,15 +1355,19 @@
   async function stepTime() {
     if (!state.date) {
       state.step = 2;
+
       return render();
     }
 
     body.innerHTML = `
       <div class="b-loading">
+
         <div class="spinner"></div>
+
         <p>
           A consultar disponibilidade…
         </p>
+
       </div>
     `;
 
@@ -1127,7 +1379,10 @@
     } catch (err) {
       state.taken = [];
 
-      console.warn(err);
+      console.warn(
+        "Erro ao consultar horários:",
+        err
+      );
     }
 
     const taken =
@@ -1136,25 +1391,39 @@
     const slots =
       D.bookingSlots || [];
 
-    const timeTaken = (t) =>
-      state.barber
-        ? taken.some(
-            (x) =>
+    const timeTaken = (
+      t
+    ) => {
+      const normalized =
+        normalizeTime(t);
+
+      if (state.barber) {
+        return taken.some(
+          (x) =>
+            normalizeTime(
+              x.booking_time
+            ) ===
+              normalized &&
+            String(
+              x.barber_name || ""
+            ) ===
               String(
-                x.booking_time
-              ) === String(t) &&
-              x.barber_name ===
                 state.barber.name
-          )
-        : taken.some(
-            (x) =>
-              String(
-                x.booking_time
-              ) === String(t)
-          );
+              )
+        );
+      }
+
+      return taken.some(
+        (x) =>
+          normalizeTime(
+            x.booking_time
+          ) === normalized
+      );
+    };
 
     body.innerHTML = `
       <div class="slot-legend">
+
         <span class="lg-free">
           <i></i>
           Disponível
@@ -1164,43 +1433,41 @@
           <i></i>
           Ocupado
         </span>
+
       </div>
 
       <div class="time-options">
 
         ${slots
-          .map(
-            (t) => {
-              const occupied =
-                timeTaken(t);
+          .map((t) => {
+            const occupied =
+              timeTaken(t);
 
-              return `
-                <button
-                  type="button"
-                  class="time-opt ${
-                    state.time ===
-                    t
-                      ? "selected"
-                      : ""
-                  } ${
-                    occupied
-                      ? "disabled"
-                      : ""
-                  }"
-                  data-time="${esc(
-                    t
-                  )}"
-                  ${
-                    occupied
-                      ? "disabled"
-                      : ""
-                  }
-                >
-                  ${esc(t)}
-                </button>
-              `;
-            }
-          )
+            return `
+              <button
+                type="button"
+                class="time-opt ${
+                  state.time === t
+                    ? "selected"
+                    : ""
+                } ${
+                  occupied
+                    ? "disabled"
+                    : ""
+                }"
+                data-time="${esc(
+                  t
+                )}"
+                ${
+                  occupied
+                    ? "disabled"
+                    : ""
+                }
+              >
+                ${esc(t)}
+              </button>
+            `;
+          })
           .join("")}
 
       </div>
@@ -1210,7 +1477,7 @@
       .querySelectorAll(
         ".time-opt"
       )
-      .forEach((btn) =>
+      .forEach((btn) => {
         btn.addEventListener(
           "click",
           () => {
@@ -1228,8 +1495,8 @@
                 )
               );
           }
-        )
-      );
+        );
+      });
   }
 
   /* ========================================================
@@ -1245,7 +1512,10 @@
         <div class="b-auth-required">
 
           <span class="auth-ic">
-            ${window.RGICONS.user}
+            ${
+              window.RGICONS
+                ?.user || ""
+            }
           </span>
 
           <p>
@@ -1258,7 +1528,10 @@
             class="btn-google"
             id="bLoginGoogle"
           >
-            ${window.RGICONS.google}
+            ${
+              window.RGICONS
+                ?.google || ""
+            }
             Continuar com Google
           </button>
 
@@ -1289,6 +1562,7 @@
       <div class="b-form">
 
         <div class="field">
+
           <label for="bkNome">
             Nome
           </label>
@@ -1301,9 +1575,11 @@
             )}"
             placeholder="O teu nome"
           >
+
         </div>
 
         <div class="field">
+
           <label for="bkTel">
             Telefone
           </label>
@@ -1316,6 +1592,7 @@
             )}"
             placeholder="+351 ..."
           >
+
         </div>
 
         <div class="field full">
@@ -1379,10 +1656,6 @@
     ) {
       body.innerHTML = `
         <div class="b-auth-required">
-          <span class="auth-ic">
-            ${window.RGICONS.info}
-          </span>
-
           <p>
             Falta selecionar o serviço,
             a data ou o horário.
@@ -1448,8 +1721,7 @@
                 2,
                 "0"
               )}/${(
-              dt.getMonth() +
-              1
+              dt.getMonth() + 1
             )
               .toString()
               .padStart(
@@ -1512,8 +1784,7 @@
       body.innerHTML = `
         <div class="b-auth-required">
           <p>
-            Não foi possível carregar
-            a confirmação.
+            Marcação não encontrada.
           </p>
         </div>
       `;
@@ -1522,17 +1793,22 @@
     }
 
     const b =
-      bk.barber_name ||
       bk["Barbeiro"] ||
+      bk.barber_name ||
       "—";
 
     const bookingDate =
-      bk.booking_date ||
-      bk["Data"];
+      bk["Data"] ||
+      bk.booking_date;
 
     const bookingTime =
-      bk.booking_time ||
-      bk["Hora"];
+      bk["Hora"] ||
+      bk.booking_time;
+
+    const service =
+      bk["Serviço"] ||
+      bk.service_name ||
+      "";
 
     const dt =
       RG.parseISO(
@@ -1543,7 +1819,10 @@
       <div class="b-success">
 
         <span class="suc-ic">
-          ${window.RGICONS.check}
+          ${
+            window.RGICONS
+              ?.check || ""
+          }
         </span>
 
         <h3>
@@ -1552,8 +1831,8 @@
         </h3>
 
         <p>
-          Obrigado!
-          Vemo-nos na barbearia.
+          Obrigado! A tua marcação
+          foi confirmada.
         </p>
 
         <div class="b-summary suc-card">
@@ -1564,11 +1843,7 @@
             </span>
 
             <span class="v">
-              ${esc(
-                bk.service_name ||
-                bk["Serviço"] ||
-                ""
-              )}
+              ${esc(service)}
             </span>
           </div>
 
@@ -1595,8 +1870,7 @@
                   2,
                   "0"
                 )}/${(
-                dt.getMonth() +
-                1
+                dt.getMonth() + 1
               )
                 .toString()
                 .padStart(
@@ -1613,7 +1887,9 @@
 
             <span class="v">
               ${esc(
-                bookingTime
+                normalizeTime(
+                  bookingTime
+                )
               )}
             </span>
           </div>
@@ -1624,7 +1900,7 @@
           Referência ·
           ${esc(
             bk.reference ||
-              "—"
+              "RG"
           )}
         </span>
 
@@ -1640,7 +1916,7 @@
           >
             ${
               window.RGICONS
-                .calendar
+                ?.calendar || ""
             }
             Ver minhas marcações
           </button>
@@ -1687,8 +1963,7 @@
      ======================================================== */
 
   async function confirmBooking() {
-    if (state.submitting)
-      return;
+    if (state.submitting) return;
 
     state.submitting = true;
 
@@ -1722,27 +1997,33 @@
           state.date
         );
 
+      const selectedTime =
+        normalizeTime(
+          state.time
+        );
+
       const clash =
         state.barber
           ? taken.some(
               (x) =>
-                String(
+                normalizeTime(
                   x.booking_time
                 ) ===
+                  selectedTime &&
+                String(
+                  x.barber_name ||
+                    ""
+                ) ===
                   String(
-                    state.time
-                  ) &&
-                x.barber_name ===
-                  barberName
+                    barberName
+                  )
             )
           : taken.some(
               (x) =>
-                String(
+                normalizeTime(
                   x.booking_time
                 ) ===
-                String(
-                  state.time
-                )
+                selectedTime
             );
 
       if (clash) {
@@ -1753,32 +2034,32 @@
 
         state.time = null;
 
-        state.submitting = false;
+        state.submitting =
+          false;
 
         state.step = 3;
 
-        return render();
+        render();
+
+        return;
       }
     } catch (err) {
       console.warn(
-        "Verificação de disponibilidade falhou:",
+        "Não foi possível verificar disponibilidade:",
         err
       );
     }
 
-    try {
-      const user =
-        window.Auth.getUser();
+    /* Criar marcação */
 
+    try {
       const booking =
         await Store.create({
           nome:
             state.nome.trim(),
 
           email:
-            state.email ||
-            user?.email ||
-            "",
+            state.email,
 
           service_name:
             state.service.name,
@@ -1817,7 +2098,8 @@
 
       state.step = 6;
 
-      state.submitting = false;
+      state.submitting =
+        false;
 
       window.showToast(
         "Marcação confirmada com sucesso!",
@@ -1828,13 +2110,15 @@
 
     } catch (err) {
       console.error(
-        "create booking error:",
+        "ERRO COMPLETO AO CRIAR MARCAÇÃO:",
         err
       );
 
-      state.submitting = false;
+      state.submitting =
+        false;
 
-      nextBtn.disabled = false;
+      nextBtn.disabled =
+        false;
 
       window.showToast(
         "Não foi possível confirmar a marcação. Tenta novamente.",
@@ -1877,6 +2161,8 @@
 
   document.addEventListener(
     "DOMContentLoaded",
-    init
+    () => {
+      init();
+    }
   );
 })();
