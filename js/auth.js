@@ -1,194 +1,610 @@
-// ========================================
-// AUTENTICAÇÃO - BARBEARIA RICKGINO
-// Supabase + Google
-// ========================================
+/* ============================================================
+Barbearia RickGino — auth.js
+Autenticação Supabase (Google OAuth) + perfil do utilizador.
 
-window.Auth = {
+- Modo real: usa o Supabase quando configurado.
+- Modo demonstração: guarda tudo em localStorage para
+  poderes ver o site antes de configurar o Supabase.
+============================================================ */
 
-  async init() {
+"use strict";
+
+(function () {
+  const cfg = window.SUPABASE_CONFIG || {};
+  const url = cfg.SUPABASE_URL || "";
+  const key = cfg.SUPABASE_PUBLISHABLE_KEY || "";
+
+  const configured =
+    !window.FORCE_DEMO_MODE &&
+    typeof supabase !== "undefined" &&
+    url !== "" &&
+    url !== "YOUR_SUPABASE_URL" &&
+    key !== "" &&
+    key !== "YOUR_SUPABASE_ANON_KEY";
+
+  const DB = {
+    profile: "rg_profile",
+    bookings: "rg_bookings",
+  };
+
+  let client = null;
+  let session = null;
+  let currentProfile = null;
+
+  /* ---------------- Helpers demo ---------------- */
+
+  function loadLocal(key) {
     try {
-      // Verifica se o Supabase foi carregado
-      if (!window.supabase) {
-        console.error("Supabase não carregado.");
-        return;
-      }
-
-      // Verifica a configuração
-      if (
-        !window.SUPABASE_CONFIG ||
-        !window.SUPABASE_CONFIG.SUPABASE_URL ||
-        !window.SUPABASE_CONFIG.SUPABASE_PUBLISHABLE_KEY
-      ) {
-        console.error("Configuração do Supabase não encontrada.");
-        return;
-      }
-
-      // Cria o cliente Supabase
-      window.supabaseClient = window.supabase.createClient(
-        window.SUPABASE_CONFIG.SUPABASE_URL,
-        window.SUPABASE_CONFIG.SUPABASE_PUBLISHABLE_KEY
-      );
-
-      console.log("✅ Supabase conectado.");
-
-      // Verifica utilizador autenticado
-      const {
-        data: { user },
-        error
-      } = await window.supabaseClient.auth.getUser();
-
-      if (error) {
-        console.error("Erro ao verificar utilizador:", error.message);
-      }
-
-      // Mostra botão Entrar ou utilizador
-      this.render(user || null);
-
-      // Escuta login/logout
-      window.supabaseClient.auth.onAuthStateChange(
-        (_event, session) => {
-          this.render(session?.user || null);
-        }
-      );
-
-    } catch (error) {
-      console.error("Erro ao inicializar autenticação:", error);
+      return JSON.parse(localStorage.getItem(key)) || null;
+    } catch {
+      return null;
     }
-  },
+  }
 
-  // ========================================
-  // RENDER DO BOTÃO / UTILIZADOR
-  // ========================================
+  function saveLocal(key, val) {
+    localStorage.setItem(key, JSON.stringify(val));
+  }
 
-  render(user) {
+  const demoProfile = () => loadLocal(DB.profile);
+  const demoBookings = () => loadLocal(DB.bookings) || [];
 
-    const authArea = document.getElementById("authArea");
-    const mobileAuth = document.getElementById("mobileAuth");
+  /* ---------------- Supabase helpers ---------------- */
 
-    const html = user
-      ? `
-        <div class="auth-user">
-          <span class="auth-user-name">
-            ${user.user_metadata?.full_name ||
-              user.email?.split("@")[0] ||
-              "Cliente"}
-          </span>
+  function initClient() {
+    if (client) return client;
+    if (!configured) return null;
 
-          <button
-            class="auth-logout"
-            onclick="window.Auth.logout()"
-            type="button"
-          >
-            Sair
-          </button>
-        </div>
-      `
-      : `
-        <button
-          class="auth-login"
-          onclick="window.Auth.loginWithGoogle()"
-          type="button"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M21.35 12.27h-9.18v3.96h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.91-4.18 2.91-7.26z"
-            />
-
-            <path
-              fill="#34A853"
-              d="M12 21.6c2.63 0 4.84-.87 6.45-2.36l-3.14-2.45c-.87.58-1.98.93-3.31.93-2.55 0-4.71-1.72-5.49-4.04H3.27v2.53A9.74 9.74 0 0 0 12 21.6z"
-            />
-
-            <path
-              fill="#FBBC05"
-              d="M6.51 13.68A5.86 5.86 0 0 1 6.2 12c0-.58.1-1.15.31-1.68V7.79H3.27A9.72 9.72 0 0 0 2.25 12c0 1.57.38 3.05 1.02 4.21l3.24-2.53z"
-            />
-
-            <path
-              fill="#EA4335"
-              d="M12 6.28c1.43 0 2.72.49 3.74 1.46l2.8-2.8C16.84 3.37 14.63 2.4 12 2.4a9.74 9.74 0 0 0-8.73 5.39l3.24 2.53C7.29 8 9.45 6.28 12 6.28z"
-            />
-          </svg>
-
-          <span>Entrar</span>
-        </button>
-      `;
-
-    if (authArea) {
-      authArea.innerHTML = html;
-    }
-
-    if (mobileAuth) {
-      mobileAuth.innerHTML = html;
-    }
-  },
-
-  // ========================================
-  // LOGIN COM GOOGLE
-  // ========================================
-
-  async loginWithGoogle() {
-
-    if (!window.supabaseClient) {
-      console.error("Supabase não inicializado.");
-      return;
-    }
-
-    const { data, error } =
-      await window.supabaseClient.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: "https://barbearia-rick-gino.vercel.app/"
-        }
+    try {
+      client = supabase.createClient(url, key, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
       });
 
+      return client;
+    } catch (err) {
+      console.warn("Supabase init falhou:", err);
+      return null;
+    }
+  }
+
+  function getClient() {
+    return client || initClient();
+  }
+
+  /* ---------------- Estado ---------------- */
+
+  function isDemo() {
+    return !configured;
+  }
+
+  function isLoggedIn() {
+    if (isDemo()) return !!demoProfile();
+    return !!session?.user;
+  }
+
+  function getUser() {
+    if (isDemo()) return demoProfile() || null;
+    return session?.user || null;
+  }
+
+  /* ---------------- Perfil ---------------- */
+
+  async function getProfile() {
+    if (isDemo()) {
+      const p = demoProfile();
+
+      return p
+        ? {
+            id: p.id,
+            nome: p.nome,
+            email: p.email,
+            telefone: p.telefone || "",
+            avatar_url: p.avatar_url || "",
+            created_at: p.created_at || new Date().toISOString(),
+          }
+        : null;
+    }
+
+    const user = getUser();
+
+    if (!user) return null;
+
+    if (currentProfile && currentProfile.id === user.id) {
+      return currentProfile;
+    }
+
+    const { data, error } = await getClient()
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+
     if (error) {
-      console.error("❌ Erro no login Google:", error.message);
-      return;
-    }
-
-    console.log("🔵 Redirecionando para o Google...");
-
-    return data;
-  },
-
-  // ========================================
-  // LOGOUT
-  // ========================================
-
-  async logout() {
-
-    if (!window.supabaseClient) {
-      return;
-    }
-
-    const { error } =
-      await window.supabaseClient.auth.signOut();
-
-    if (error) {
-      console.error("Erro ao terminar sessão:", error.message);
-      return;
-    }
-
-    console.log("👋 Sessão terminada.");
-  },
-
-  // ========================================
-  // OBTER UTILIZADOR ATUAL
-  // ========================================
-
-  async getUser() {
-
-    if (!window.supabaseClient) {
+      console.warn("getProfile error:", error);
       return null;
     }
 
-    const {
-      data: { user }
-    } = await window.supabaseClient.auth.getUser();
+    if (!data) {
+      const nuevo = {
+        id: user.id,
+        nome:
+          user.user_metadata?.full_name ||
+          user.user_metadata?.name ||
+          "Utilizador",
+        email: user.email || "",
+        telefone: "",
+        avatar_url:
+          user.user_metadata?.avatar_url ||
+          user.user_metadata?.picture ||
+          "",
+      };
 
-    return user || null;
+      const {
+        data: inserted,
+        error: insErr,
+      } = await getClient()
+        .from("profiles")
+        .upsert(nuevo)
+        .select()
+        .single();
+
+      if (insErr) {
+        console.warn(
+          "Criação de perfil falhou:",
+          insErr.message
+        );
+
+        return {
+          ...nuevo,
+          created_at: new Date().toISOString(),
+        };
+      }
+
+      currentProfile = inserted;
+      return currentProfile;
+    }
+
+    currentProfile = data;
+    return currentProfile;
   }
 
-};
+  async function updateProfile(patch) {
+    if (isDemo()) {
+      const p = demoProfile();
+
+      if (!p) {
+        throw new Error("Sem sessão.");
+      }
+
+      const updated = {
+        ...p,
+        ...patch,
+        updated_at: new Date().toISOString(),
+      };
+
+      saveLocal(DB.profile, updated);
+
+      return updated;
+    }
+
+    const user = getUser();
+
+    if (!user) {
+      throw new Error("Sem sessão.");
+    }
+
+    const { data, error } = await getClient()
+      .from("profiles")
+      .update(patch)
+      .eq("id", user.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    currentProfile = data;
+
+    return data;
+  }
+
+  /* ---------------- Login / Logout ---------------- */
+
+  async function signInWithGoogle() {
+    if (isDemo()) {
+      const demoUser = {
+        id:
+          "demo_" +
+          Math.random().toString(36).slice(2, 10),
+        nome: "Utilizador Demo",
+        email: "utilizador.demo@gmail.com",
+        telefone: "",
+        avatar_url: "",
+        created_at: new Date().toISOString(),
+      };
+
+      saveLocal(DB.profile, demoUser);
+
+      if (!demoBookings().length) {
+        const d = new Date();
+        d.setDate(d.getDate() + 3);
+
+        saveLocal(DB.bookings, [
+          {
+            id: "bk_demo_seed",
+            user_id: demoUser.id,
+            service_name: "Corte + Barba",
+            barber_name: "Rick Gino",
+            booking_date: window.RG.toISODate(d),
+            booking_time: "16:30",
+            status: "confirmed",
+            reference:
+              "RGD-" +
+              Math.random()
+                .toString(36)
+                .slice(2, 8)
+                .toUpperCase(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ]);
+      }
+
+      session = {
+        user: demoUser,
+      };
+
+      onAuthChange();
+
+      return demoUser;
+    }
+
+    const client = getClient();
+
+    // REDIRECIONAMENTO CORRIGIDO
+    const { error } = await client.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo:
+          "https://barbearia-rick-gino.vercel.app/",
+      },
+    });
+
+    if (error) throw error;
+  }
+
+  async function signOut() {
+    if (isDemo()) {
+      localStorage.removeItem(DB.profile);
+
+      session = null;
+      currentProfile = null;
+
+      onAuthChange();
+
+      return;
+    }
+
+    await getClient().auth.signOut();
+
+    session = null;
+    currentProfile = null;
+
+    onAuthChange();
+  }
+
+  /* ---------------- UI de autenticação ---------------- */
+
+  function renderAuthUI() {
+    const area = document.getElementById("authArea");
+    const mobileArea =
+      document.getElementById("mobileAuth");
+
+    const user = getUser();
+
+    const renderArea = (el, isMobile) => {
+      if (!el) return;
+
+      if (!isLoggedIn()) {
+        el.innerHTML = `
+          <button
+            class="btn btn-gold btn-sm auth-login-btn"
+            type="button"
+          >
+            ${window.RGICONS.google}
+            <span>Entrar</span>
+          </button>
+
+          ${
+            isMobile
+              ? `<a href="#marcacao"
+                    class="btn btn-gold btn-sm"
+                    data-book>
+                    Marcar agora
+                 </a>`
+              : ""
+          }
+        `;
+
+        el
+          .querySelector(".auth-login-btn")
+          ?.addEventListener("click", () =>
+            signInWithGoogle().catch(showAuthError)
+          );
+
+        return;
+      }
+
+      const name =
+        user?.nome ||
+        user?.user_metadata?.full_name ||
+        user?.email?.split("@")[0] ||
+        "Conta";
+
+      const email =
+        user?.email ||
+        user?.user_metadata?.email ||
+        "";
+
+      const avatar =
+        user?.avatar_url ||
+        user?.user_metadata?.avatar_url ||
+        user?.user_metadata?.picture ||
+        "";
+
+      el.innerHTML = `
+        ${
+          isMobile
+            ? `<a href="#marcacao"
+                  class="btn btn-gold btn-sm"
+                  data-book>
+                  Marcar agora
+               </a>`
+            : ""
+        }
+
+        <div
+          class="user-box"
+          id="${isMobile ? "mUserBox" : "userBox"}"
+        >
+          <span class="user-avatar">
+            ${
+              avatar
+                ? `<img
+                     src="${escapeAttr(avatar)}"
+                     alt=""
+                   >`
+                : window.RG.initials(name)
+            }
+          </span>
+
+          <span class="user-name">
+            ${escapeHtml(name)}
+          </span>
+
+          <span class="user-caret"></span>
+        </div>
+
+        <div
+          class="user-drop"
+          id="${isMobile ? "mUserDrop" : "userDrop"}"
+        >
+          <div class="ud-head">
+
+            <span class="user-avatar">
+              ${
+                avatar
+                  ? `<img
+                       src="${escapeAttr(avatar)}"
+                       alt=""
+                     >`
+                  : window.RG.initials(name)
+              }
+            </span>
+
+            <div>
+              <b>${escapeHtml(name)}</b>
+              <span>${escapeHtml(email)}</span>
+            </div>
+
+            <button
+              type="button"
+              class="ud-close"
+              aria-label="Fechar menu"
+            >
+              ✕
+            </button>
+          </div>
+
+          <a href="profile.html#visao-geral">
+            ${window.RGICONS.layout}
+            <span>Visão geral</span>
+          </a>
+
+          <a href="profile.html#meu-perfil">
+            ${window.RGICONS.user}
+            <span>Meu perfil</span>
+          </a>
+
+          <a href="profile.html#minhas-marcacoes">
+            ${window.RGICONS.calendar}
+            <span>Minhas marcações</span>
+          </a>
+
+          <a href="profile.html#historico">
+            ${window.RGICONS.history}
+            <span>Histórico</span>
+          </a>
+
+          <a href="profile.html#definicoes">
+            ${window.RGICONS.settings}
+            <span>Definições</span>
+          </a>
+
+          <div class="ud-divider"></div>
+
+          <button
+            type="button"
+            class="ud-btn ud-danger auth-logout-btn"
+          >
+            ${window.RGICONS.logout}
+            <span>Terminar sessão</span>
+          </button>
+        </div>
+      `;
+
+      const box = el.querySelector(
+        `#${isMobile ? "mUserBox" : "userBox"}`
+      );
+
+      const drop = el.querySelector(
+        `#${isMobile ? "mUserDrop" : "userDrop"}`
+      );
+
+      box.addEventListener("click", (e) => {
+        e.stopPropagation();
+
+        drop.classList.toggle("open");
+        box.classList.toggle("open");
+      });
+
+      document.addEventListener("click", () => {
+        drop.classList.remove("open");
+        box.classList.remove("open");
+      });
+
+      const closeBtn =
+        el.querySelector(".ud-close");
+
+      if (closeBtn) {
+        closeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+
+          drop.classList.remove("open");
+          box.classList.remove("open");
+        });
+      }
+
+      el
+        .querySelector(".auth-logout-btn")
+        ?.addEventListener("click", () =>
+          signOut().then(() =>
+            window.showToast(
+              "Sessão terminada. Até breve.",
+              "info"
+            )
+          )
+        );
+    };
+
+    renderArea(area, false);
+    renderArea(mobileArea, true);
+  }
+
+  function showAuthError(err) {
+    console.warn("Auth error:", err);
+
+    window.showToast(
+      "Não foi possível iniciar sessão. Tenta novamente.",
+      "error"
+    );
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "").replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        }[c])
+    );
+  }
+
+  function escapeAttr(s) {
+    return String(s ?? "").replace(
+      /"/g,
+      "&quot;"
+    );
+  }
+
+  /* ---------------- onAuthChange ---------------- */
+
+  let authChangeHandler = null;
+
+  function onAuthChange() {
+    renderAuthUI();
+
+    if (typeof authChangeHandler === "function") {
+      authChangeHandler();
+    }
+  }
+
+  function setOnAuthChange(fn) {
+    authChangeHandler = fn;
+  }
+
+  /* ---------------- Init ---------------- */
+
+  async function initAuth() {
+    if (configured) {
+      const c = initClient();
+
+      if (!c) return;
+
+      const { data } =
+        await c.auth.getSession();
+
+      session = data.session;
+
+      c.auth.onAuthStateChange(
+        (event, newSession) => {
+          if (
+            event === "SIGNED_IN" ||
+            event === "TOKEN_REFRESHED" ||
+            event === "INITIAL_SESSION"
+          ) {
+            session = newSession;
+
+            if (event === "SIGNED_IN") {
+              getProfile().then(() =>
+                onAuthChange()
+              );
+            }
+          } else if (
+            event === "SIGNED_OUT"
+          ) {
+            session = null;
+            currentProfile = null;
+          }
+
+          onAuthChange();
+        }
+      );
+    } else {
+      session = demoProfile()
+        ? { user: demoProfile() }
+        : null;
+    }
+
+    onAuthChange();
+  }
+
+  window.Auth = {
+    init: initAuth,
+    isDemo,
+    isLoggedIn,
+    getUser,
+    getProfile,
+    updateProfile,
+    signInWithGoogle,
+    signOut,
+    setOnAuthChange,
+    getClient,
+  };
+})();
