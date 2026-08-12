@@ -27,6 +27,7 @@
       }
 
       const user = auth.getUser();
+
       if (!user) return [];
 
       const { data, error } = await auth
@@ -80,18 +81,13 @@
           id:
             "bk_" +
             Math.random().toString(36).slice(2, 12),
-
           user_id: auth.getUser().id,
-
           service_name: payload.service_name,
           barber_name: payload.barber_name,
           booking_date: payload.booking_date,
           booking_time: payload.booking_time,
-
           status: "confirmed",
-
           reference,
-
           created_at: now,
           updated_at: now,
         };
@@ -130,7 +126,6 @@
       return data;
     },
 
-    /* Cancelar: nunca apaga. Apenas muda o status. */
     async cancel(id) {
       const auth = window.Auth;
 
@@ -174,7 +169,6 @@
       return data;
     },
 
-    /* Horários ocupados */
     async getTakenSlots(dateISO) {
       const auth = window.Auth;
 
@@ -207,7 +201,7 @@
         return data || [];
       } catch (err) {
         console.warn(
-          "get_taken_slots indisponível:",
+          "get_taken_slots indisponível (usa fallback vazio):",
           err?.message
         );
 
@@ -223,28 +217,23 @@
     let r = "";
 
     for (let i = 0; i < 6; i++) {
-      r += chars[
-        Math.floor(Math.random() * chars.length)
-      ];
+      r +=
+        chars[Math.floor(Math.random() * chars.length)];
     }
 
     const d = new Date();
 
-    return `RG${String(d.getFullYear()).slice(
-      2
-    )}${String(d.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}${String(d.getDate()).padStart(
-      2,
-      "0"
-    )}-${r}`;
+    return `RG${String(d.getFullYear()).slice(2)}${String(
+      d.getMonth() + 1
+    ).padStart(2, "0")}${String(
+      d.getDate()
+    ).padStart(2, "0")}-${r}`;
   }
 
   window.BookingsStore = Store;
 
   /* ========================================================
-     WIZARD
+     WIZARD DE MARCAÇÃO
      ======================================================== */
 
   const Steps = [
@@ -300,20 +289,14 @@
       state.noBarberPref = !state.barber;
     }
 
-    if (!modal) return;
-
     modal.classList.add("open");
-
     document.body.style.overflow = "hidden";
 
     render();
   }
 
   function close() {
-    if (!modal) return;
-
     modal.classList.remove("open");
-
     document.body.style.overflow = "";
   }
 
@@ -330,35 +313,19 @@
   }
 
   function init() {
-    modal =
-      document.getElementById("bookingModal");
+    modal = document.getElementById("bookingModal");
 
     if (!modal) return;
 
-    body =
-      document.getElementById("bookingStep");
-
-    dots =
-      document.getElementById("bookingDots");
-
-    foot =
-      document.getElementById("bookingFoot");
-
-    backBtn =
-      document.getElementById("bookingBack");
-
-    nextBtn =
-      document.getElementById("bookingNext");
-
+    body = document.getElementById("bookingStep");
+    dots = document.getElementById("bookingDots");
+    foot = document.getElementById("bookingFoot");
+    backBtn = document.getElementById("bookingBack");
+    nextBtn = document.getElementById("bookingNext");
     stepLabel =
-      document.getElementById(
-        "bookingStepLabel"
-      );
-
+      document.getElementById("bookingStepLabel");
     stepTitle =
-      document.getElementById(
-        "bookingStepTitle"
-      );
+      document.getElementById("bookingStepTitle");
 
     document
       .getElementById("bookingClose")
@@ -389,15 +356,10 @@
       render();
     });
 
-    nextBtn.addEventListener(
-      "click",
-      onNext
-    );
+    nextBtn.addEventListener("click", onNext);
 
     window.Auth.setOnAuthChange(() => {
-      if (
-        modal.classList.contains("open")
-      ) {
+      if (modal.classList.contains("open")) {
         if (state.step === 4) {
           refreshStepData();
         }
@@ -419,9 +381,7 @@
       (_, i) =>
         `<span class="step-dot ${
           i === s ? "active" : ""
-        } ${
-          i < s ? "done" : ""
-        }"></span>`
+        } ${i < s ? "done" : ""}"></span>`
     ).join("");
 
     body.innerHTML = "";
@@ -450,22 +410,14 @@
         <span>Confirmar marcação</span>
       `;
 
-      nextBtn.classList.add(
-        "btn-gold"
-      );
-
-      nextBtn.disabled =
-        state.submitting;
+      nextBtn.classList.add("btn-gold");
+      nextBtn.disabled = state.submitting;
     } else {
       nextBtn.innerHTML = `
-        Continuar
-        ${window.RGICONS.arrowRight}
+        Continuar ${window.RGICONS.arrowRight}
       `;
 
-      nextBtn.classList.add(
-        "btn-gold"
-      );
-
+      nextBtn.classList.add("btn-gold");
       nextBtn.disabled = false;
     }
   }
@@ -473,10 +425,7 @@
   async function onNext() {
     const s = state.step;
 
-    if (
-      s === 0 &&
-      !state.service
-    ) {
+    if (s === 0 && !state.service) {
       return window.showToast(
         "Escolhe um serviço para continuar.",
         "info"
@@ -494,20 +443,14 @@
       );
     }
 
-    if (
-      s === 2 &&
-      !state.date
-    ) {
+    if (s === 2 && !state.date) {
       return window.showToast(
         "Escolhe um dia.",
         "info"
       );
     }
 
-    if (
-      s === 3 &&
-      !state.time
-    ) {
+    if (s === 3 && !state.time) {
       return window.showToast(
         "Escolhe um horário.",
         "info"
@@ -515,9 +458,7 @@
     }
 
     if (s === 4) {
-      if (
-        !window.Auth.isLoggedIn()
-      ) {
+      if (!window.Auth.isLoggedIn()) {
         return window.showToast(
           "Inicia sessão para continuar.",
           "info"
@@ -561,16 +502,12 @@
 
     if (prof) {
       state.nome = prof.nome || "";
-      state.telefone =
-        prof.telefone || "";
-      state.email =
-        prof.email || "";
+      state.telefone = prof.telefone || "";
+      state.email = prof.email || "";
     }
   }
 
-  /* ========================================================
-     PASSO 1 — SERVIÇO
-     ======================================================== */
+  /* ---------- Passo 1: Serviço ---------- */
 
   function stepService() {
     body.innerHTML = `
@@ -578,27 +515,27 @@
         ${D.services
           .map(
             (s) => `
-              <button
-                type="button"
-                class="service-opt ${
-                  state.service?.id === s.id
-                    ? "selected"
-                    : ""
-                }"
-                data-svc="${esc(s.id)}"
-              >
-                <span class="so-name">
-                  ${esc(s.name)}
-                </span>
+          <button
+            type="button"
+            class="service-opt ${
+              state.service?.id === s.id
+                ? "selected"
+                : ""
+            }"
+            data-svc="${esc(s.id)}"
+          >
+            <span class="so-name">
+              ${esc(s.name)}
+            </span>
 
-                <span class="so-meta">
-                  <span>${s.duration} min</span>
-                  <span class="so-price">
-                    ${s.price}€
-                  </span>
-                </span>
-              </button>
-            `
+            <span class="so-meta">
+              <span>${s.duration} min</span>
+              <span class="so-price">
+                ${s.price}€
+              </span>
+            </span>
+          </button>
+        `
           )
           .join("")}
       </div>
@@ -607,34 +544,25 @@
     body
       .querySelectorAll(".service-opt")
       .forEach((btn) =>
-        btn.addEventListener(
-          "click",
-          () => {
-            state.service =
-              D.services.find(
-                (s) =>
-                  s.id ===
-                  btn.dataset.svc
-              );
+        btn.addEventListener("click", () => {
+          state.service =
+            D.services.find(
+              (s) => s.id === btn.dataset.svc
+            );
 
-            body
-              .querySelectorAll(
-                ".service-opt"
+          body
+            .querySelectorAll(".service-opt")
+            .forEach((b) =>
+              b.classList.toggle(
+                "selected",
+                b === btn
               )
-              .forEach((b) =>
-                b.classList.toggle(
-                  "selected",
-                  b === btn
-                )
-              );
-          }
-        )
+            );
+        })
       );
   }
 
-  /* ========================================================
-     PASSO 2 — BARBEIRO
-     ======================================================== */
+  /* ---------- Passo 2: Barbeiro ---------- */
 
   function stepBarber() {
     const anySelected =
@@ -646,9 +574,7 @@
         <button
           type="button"
           class="barber-opt ${
-            anySelected
-              ? "selected"
-              : ""
+            anySelected ? "selected" : ""
           }"
           data-barber="any"
         >
@@ -668,41 +594,34 @@
         ${D.team
           .map(
             (t) => `
-              <button
-                type="button"
-                class="barber-opt ${
-                  state.barber?.id ===
-                  t.id
-                    ? "selected"
-                    : ""
-                }"
-                data-barber="${esc(
-                  t.id
-                )}"
-              >
-                <span class="bo-avatar">
-                  ${
-                    t.photo
-                      ? `<img src="${esc(
-                          t.photo
-                        )}" alt="">`
-                      : window.RG.initials(
-                          t.name
-                        )
-                  }
-                </span>
+          <button
+            type="button"
+            class="barber-opt ${
+              state.barber?.id === t.id
+                ? "selected"
+                : ""
+            }"
+            data-barber="${esc(t.id)}"
+          >
+            <span class="bo-avatar">
+              ${
+                t.photo
+                  ? `<img src="${esc(
+                      t.photo
+                    )}" alt="">`
+                  : window.RG.initials(t.name)
+              }
+            </span>
 
-                <span class="bo-name">
-                  ${esc(t.name)}
-                </span>
+            <span class="bo-name">
+              ${esc(t.name)}
+            </span>
 
-                <span class="bo-spec">
-                  ${esc(
-                    t.specialty
-                  )}
-                </span>
-              </button>
-            `
+            <span class="bo-spec">
+              ${esc(t.specialty)}
+            </span>
+          </button>
+        `
           )
           .join("")}
 
@@ -712,46 +631,44 @@
     body
       .querySelectorAll(".barber-opt")
       .forEach((btn) =>
-        btn.addEventListener(
-          "click",
-          () => {
-            if (
-              btn.dataset.barber ===
-              "any"
-            ) {
-              state.barber = null;
-              state.noBarberPref = true;
-            } else {
-              state.barber =
-                D.team.find(
-                  (t) =>
-                    t.id ===
-                    btn.dataset.barber
-                );
-
-              state.noBarberPref = false;
-            }
-
-            body
-              .querySelectorAll(
-                ".barber-opt"
-              )
-              .forEach((b) =>
-                b.classList.toggle(
-                  "selected",
-                  b === btn
-                )
+        btn.addEventListener("click", () => {
+          if (
+            btn.dataset.barber === "any"
+          ) {
+            state.barber = null;
+            state.noBarberPref = true;
+          } else {
+            state.barber =
+              D.team.find(
+                (t) =>
+                  t.id ===
+                  btn.dataset.barber
               );
+
+            state.noBarberPref = false;
           }
-        )
+
+          body
+            .querySelectorAll(".barber-opt")
+            .forEach((b) =>
+              b.classList.toggle(
+                "selected",
+                b === btn
+              )
+            );
+        })
       );
   }
 
   /* ========================================================
-     PASSO 3 — DATA
+     PASSO 3: DATA
      
-     CORRIGIDO:
-     Não depende de RG.addDays() nem RG.parseISO().
+     CORREÇÃO:
+     - começa no dia 1 do mês atual;
+     - dias anteriores ficam bloqueados;
+     - continua automaticamente para o mês seguinte;
+     - quando mudar o mês, o cálculo usa automaticamente
+       a nova data do sistema.
      ======================================================== */
 
   function stepDate() {
@@ -759,55 +676,48 @@
 
     const now = new Date();
 
+    // Data de hoje sem horas
+    const today = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+
+    // Começamos sempre no dia 1 do mês atual
+    const start = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1
+    );
+
+    // Quantidade de dias que o sistema deve mostrar
     const totalDays =
-      Number(D.bookingDaysAhead) || 14;
+      D.bookingDaysAhead || 30;
 
-    const closedDays =
-      Array.isArray(
-        D.bookingClosedWeekdays
-      )
-        ? D.bookingClosedWeekdays
-        : [];
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(start);
 
-    for (
-      let i = 0;
-      i < totalDays;
-      i++
-    ) {
-      const d = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() + i
-      );
+      // Isto faz o calendário atravessar
+      // automaticamente o fim do mês.
+      d.setDate(start.getDate() + i);
 
-      const year =
-        d.getFullYear();
+      const dateISO = RG.toISODate(d);
 
-      const month =
-        String(
-          d.getMonth() + 1
-        ).padStart(2, "0");
+      const dow = d.getDay();
 
-      const day =
-        String(
-          d.getDate()
-        ).padStart(2, "0");
+      // Dia da semana encerrado pela barbearia
+      const closed =
+        (D.bookingClosedWeekdays || []).includes(
+          dow
+        );
 
-      const date =
-        `${year}-${month}-${day}`;
-
-      const dow =
-        d.getDay();
+      // Dia que já passou
+      const isPast = d < today;
 
       days.push({
-        date,
+        date: dateISO,
         dow,
-        closed:
-          closedDays.includes(dow),
-        dayNumber:
-          d.getDate(),
-        monthNumber:
-          d.getMonth(),
+        closed: closed || isPast,
       });
     }
 
@@ -838,21 +748,21 @@
 
     body.innerHTML = `
       <div class="date-options">
-
         ${days
-          .map(
-            (d) => `
+          .map((d) => {
+            const dt =
+              RG.parseISO(d.date);
+
+            const sel =
+              state.date === d.date;
+
+            return `
               <button
                 type="button"
                 class="date-opt ${
-                  state.date ===
-                  d.date
-                    ? "selected"
-                    : ""
+                  sel ? "selected" : ""
                 } ${
-                  d.closed
-                    ? "disabled"
-                    : ""
+                  d.closed ? "disabled" : ""
                 }"
                 data-date="${d.date}"
                 ${
@@ -866,19 +776,16 @@
                 </span>
 
                 <span class="day">
-                  ${d.dayNumber}
+                  ${dt.getDate()}
                 </span>
 
                 <span class="mon">
-                  ${monNames[
-                    d.monthNumber
-                  ]}
+                  ${monNames[dt.getMonth()]}
                 </span>
               </button>
-            `
-          )
+            `;
+          })
           .join("")}
-
       </div>
 
       <p
@@ -889,7 +796,8 @@
         "
       >
         ${window.RGICONS.info}
-        Os dias encerrados aparecem esbatidos.
+        Os dias anteriores e os dias encerrados
+        aparecem indisponíveis.
       </p>
     `;
 
@@ -921,9 +829,7 @@
       );
   }
 
-  /* ========================================================
-     PASSO 4 — HORÁRIO
-     ======================================================== */
+  /* ---------- Passo 4: Horário ---------- */
 
   async function stepTime() {
     if (!state.date) {
@@ -950,20 +856,16 @@
       console.warn(err);
     }
 
-    const taken =
-      state.taken || [];
+    const taken = state.taken || [];
 
     const slots =
-      Array.isArray(D.bookingSlots)
-        ? D.bookingSlots
-        : [];
+      D.bookingSlots || [];
 
     const timeTaken = (t) =>
       state.barber
         ? taken.some(
             (x) =>
-              x.booking_time ===
-                t &&
+              x.booking_time === t &&
               x.barber_name ===
                 state.barber.name
           )
@@ -984,34 +886,32 @@
       </div>
 
       <div class="time-options">
-
         ${slots
           .map(
             (t) => `
-              <button
-                type="button"
-                class="time-opt ${
-                  state.time === t
-                    ? "selected"
-                    : ""
-                } ${
-                  timeTaken(t)
-                    ? "disabled"
-                    : ""
-                }"
-                data-time="${t}"
-                ${
-                  timeTaken(t)
-                    ? "disabled"
-                    : ""
-                }
-              >
-                ${t}
-              </button>
-            `
+          <button
+            type="button"
+            class="time-opt ${
+              state.time === t
+                ? "selected"
+                : ""
+            } ${
+              timeTaken(t)
+                ? "disabled"
+                : ""
+            }"
+            data-time="${t}"
+            ${
+              timeTaken(t)
+                ? "disabled"
+                : ""
+            }
+          >
+            ${t}
+          </button>
+        `
           )
           .join("")}
-
       </div>
     `;
 
@@ -1039,9 +939,7 @@
       );
   }
 
-  /* ========================================================
-     PASSO 5 — DADOS
-     ======================================================== */
+  /* ---------- Passo 5: Dados pessoais ---------- */
 
   function stepData() {
     const logged =
@@ -1050,7 +948,6 @@
     if (!logged) {
       body.innerHTML = `
         <div class="b-auth-required">
-
           <span class="auth-ic">
             ${window.RGICONS.user}
           </span>
@@ -1068,7 +965,6 @@
             ${window.RGICONS.google}
             Continuar com Google
           </button>
-
         </div>
       `;
 
@@ -1160,23 +1056,11 @@
     );
   }
 
-  /* ========================================================
-     PASSO 6 — RESUMO
-     ======================================================== */
+  /* ---------- Passo 6: Resumo ---------- */
 
   function stepSummary() {
-    const parts =
-      String(state.date || "")
-        .split("-");
-
-    const year =
-      Number(parts[0]);
-
-    const month =
-      Number(parts[1]);
-
-    const day =
-      Number(parts[2]);
+    const dt =
+      RG.parseISO(state.date);
 
     const b =
       state.barber || {
@@ -1187,7 +1071,10 @@
       <div class="b-summary">
 
         <div class="sum-row">
-          <span class="k">Serviço</span>
+          <span class="k">
+            Serviço
+          </span>
+
           <span class="v">
             ${esc(state.service.name)}
             <span class="sub">
@@ -1197,37 +1084,57 @@
         </div>
 
         <div class="sum-row">
-          <span class="k">Barbeiro</span>
+          <span class="k">
+            Barbeiro
+          </span>
+
           <span class="v">
             ${esc(b.name)}
           </span>
         </div>
 
         <div class="sum-row">
-          <span class="k">Data</span>
+          <span class="k">
+            Data
+          </span>
+
           <span class="v">
-            ${String(day).padStart(2, "0")}/${String(
-              month
-            ).padStart(2, "0")}/${year}
+            ${dt
+              .getDate()
+              .toString()
+              .padStart(2, "0")}/${(
+              dt.getMonth() + 1
+            )
+              .toString()
+              .padStart(2, "0")}/${dt.getFullYear()}
           </span>
         </div>
 
         <div class="sum-row">
-          <span class="k">Hora</span>
+          <span class="k">
+            Hora
+          </span>
+
           <span class="v">
             ${esc(state.time)}
           </span>
         </div>
 
         <div class="sum-row">
-          <span class="k">Nome</span>
+          <span class="k">
+            Nome
+          </span>
+
           <span class="v">
             ${esc(state.nome)}
           </span>
         </div>
 
         <div class="sum-row sum-total">
-          <span class="k">Total</span>
+          <span class="k">
+            Total
+          </span>
+
           <span class="v">
             ${state.service.price}€
           </span>
@@ -1237,9 +1144,7 @@
     `;
   }
 
-  /* ========================================================
-     PASSO 7 — CONFIRMAÇÃO
-     ======================================================== */
+  /* ---------- Passo 7: Confirmação ---------- */
 
   function stepSuccess() {
     const bk =
@@ -1248,19 +1153,10 @@
     const b =
       bk.barber_name || "—";
 
-    const parts =
-      String(
-        bk.booking_date || ""
-      ).split("-");
-
-    const year =
-      Number(parts[0]);
-
-    const month =
-      Number(parts[1]);
-
-    const day =
-      Number(parts[2]);
+    const dt =
+      RG.parseISO(
+        bk.booking_date
+      );
 
     body.innerHTML = `
       <div class="b-success">
@@ -1270,7 +1166,8 @@
         </span>
 
         <h3>
-          Marcação <em>confirmada</em>
+          Marcação
+          <em>confirmada</em>
         </h3>
 
         <p>
@@ -1281,38 +1178,49 @@
         <div class="b-summary suc-card">
 
           <div class="sum-row">
-            <span class="k">Serviço</span>
+            <span class="k">
+              Serviço
+            </span>
+
             <span class="v">
               ${esc(bk.service_name)}
             </span>
           </div>
 
           <div class="sum-row">
-            <span class="k">Barbeiro</span>
+            <span class="k">
+              Barbeiro
+            </span>
+
             <span class="v">
               ${esc(b)}
             </span>
           </div>
 
           <div class="sum-row">
-            <span class="k">Data</span>
+            <span class="k">
+              Data
+            </span>
+
             <span class="v">
-              ${String(day).padStart(
-                2,
-                "0"
-              )}/${String(month).padStart(
-                2,
-                "0"
-              )}/${year}
+              ${dt
+                .getDate()
+                .toString()
+                .padStart(2, "0")}/${(
+                dt.getMonth() + 1
+              )
+                .toString()
+                .padStart(2, "0")}/${dt.getFullYear()}
             </span>
           </div>
 
           <div class="sum-row">
-            <span class="k">Hora</span>
+            <span class="k">
+              Hora
+            </span>
+
             <span class="v">
-              ${esc(
-                bk.booking_time
-              )}
+              ${esc(bk.booking_time)}
             </span>
           </div>
 
@@ -1327,7 +1235,6 @@
           class="suc-actions"
           style="margin-top:22px"
         >
-
           <button
             type="button"
             class="btn btn-gold"
@@ -1344,7 +1251,6 @@
           >
             Fechar
           </button>
-
         </div>
 
       </div>
@@ -1370,9 +1276,7 @@
       );
   }
 
-  /* ========================================================
-     CONFIRMAR MARCAÇÃO
-     ======================================================== */
+  /* ---------- Confirmação da marcação ---------- */
 
   async function confirmBooking() {
     if (state.submitting) return;
@@ -1391,7 +1295,9 @@
         "
       ></span>
 
-      <span>A confirmar…</span>
+      <span>
+        A confirmar…
+      </span>
     `;
 
     const barberName =
@@ -1433,10 +1339,7 @@
         return render();
       }
     } catch (err) {
-      console.warn(
-        "Verificação de disponibilidade falhou:",
-        err
-      );
+      /* sem verificação */
     }
 
     try {
@@ -1444,13 +1347,10 @@
         await Store.create({
           service_name:
             state.service.name,
-
           barber_name:
             barberName,
-
           booking_date:
             state.date,
-
           booking_time:
             state.time,
         });
@@ -1462,7 +1362,6 @@
         await window.Auth.updateProfile({
           nome:
             state.nome.trim(),
-
           telefone:
             state.telefone.trim(),
         });
@@ -1470,7 +1369,7 @@
         void prof;
       } catch (err) {
         console.warn(
-          "Update profile falhou:",
+          "Update profile falhou (não bloqueia a marcação):",
           err?.message
         );
       }
@@ -1503,9 +1402,7 @@
     }
   }
 
-  /* ========================================================
-     ESC
-     ======================================================== */
+  /* ---------- esc helper local ---------- */
 
   function esc(s) {
     return String(s ?? "").replace(
@@ -1517,13 +1414,11 @@
           ">": "&gt;",
           '"': "&quot;",
           "'": "&#039;",
-        }[c])
+        })[c]
     );
   }
 
-  /* ========================================================
-     EXPOSIÇÃO
-     ======================================================== */
+  /* ---------- Exposição ---------- */
 
   window.BookingFlow = {
     open,
