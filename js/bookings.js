@@ -43,7 +43,7 @@
 
     async upcoming() {
       const all = await Store.listAll();
-      const today = getTodayISO();
+      const today = RG.toISODate(new Date());
 
       return all
         .filter(
@@ -62,8 +62,7 @@
       const all = await Store.listAll();
 
       return (
-        all.find((b) => String(b.id) === String(id)) ||
-        null
+        all.find((b) => String(b.id) === String(id)) || null
       );
     },
 
@@ -136,7 +135,7 @@
       return data;
     },
 
-    /* Cancelar: nunca apaga. Apenas muda o status. */
+    /* Cancelar: nunca apaga a marcação */
     async cancel(id) {
       const auth = window.Auth;
 
@@ -154,6 +153,7 @@
         }
 
         all[idx].status = "cancelled";
+
         all[idx].updated_at =
           new Date().toISOString();
 
@@ -223,18 +223,6 @@
     },
   };
 
-  function getTodayISO() {
-    const now = new Date();
-
-    return (
-      now.getFullYear() +
-      "-" +
-      String(now.getMonth() + 1).padStart(2, "0") +
-      "-" +
-      String(now.getDate()).padStart(2, "0")
-    );
-  }
-
   function genReference() {
     const chars =
       "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -242,9 +230,10 @@
     let r = "";
 
     for (let i = 0; i < 6; i++) {
-      r += chars[
-        Math.floor(Math.random() * chars.length)
-      ];
+      r +=
+        chars[
+          Math.floor(Math.random() * chars.length)
+        ];
     }
 
     const d = new Date();
@@ -279,13 +268,18 @@
     service: null,
     barber: null,
     noBarberPref: true,
+
     date: null,
     time: null,
+
     nome: "",
     telefone: "",
     email: "",
+
     taken: [],
+
     submitting: false,
+
     lastBooking: null,
   };
 
@@ -317,8 +311,6 @@
       state.noBarberPref = !state.barber;
     }
 
-    if (!modal) return;
-
     modal.classList.add("open");
 
     document.body.style.overflow = "hidden";
@@ -327,8 +319,6 @@
   }
 
   function close() {
-    if (!modal) return;
-
     modal.classList.remove("open");
 
     document.body.style.overflow = "";
@@ -336,13 +326,21 @@
 
   function resetState() {
     state.step = 0;
+
     state.service = null;
+
     state.barber = null;
+
     state.noBarberPref = true;
+
     state.date = null;
+
     state.time = null;
+
     state.taken = [];
+
     state.submitting = false;
+
     state.lastBooking = null;
   }
 
@@ -406,10 +404,15 @@
       render();
     });
 
-    nextBtn.addEventListener("click", onNext);
+    nextBtn.addEventListener(
+      "click",
+      onNext
+    );
 
     window.Auth.setOnAuthChange(() => {
-      if (modal.classList.contains("open")) {
+      if (
+        modal.classList.contains("open")
+      ) {
         if (state.step === 4) {
           refreshStepData();
         }
@@ -481,7 +484,10 @@
   async function onNext() {
     const s = state.step;
 
-    if (s === 0 && !state.service) {
+    if (
+      s === 0 &&
+      !state.service
+    ) {
       return window.showToast(
         "Escolhe um serviço para continuar.",
         "info"
@@ -499,14 +505,20 @@
       );
     }
 
-    if (s === 2 && !state.date) {
+    if (
+      s === 2 &&
+      !state.date
+    ) {
       return window.showToast(
         "Escolhe um dia.",
         "info"
       );
     }
 
-    if (s === 3 && !state.time) {
+    if (
+      s === 3 &&
+      !state.time
+    ) {
       return window.showToast(
         "Escolhe um horário.",
         "info"
@@ -514,7 +526,9 @@
     }
 
     if (s === 4) {
-      if (!window.Auth.isLoggedIn()) {
+      if (
+        !window.Auth.isLoggedIn()
+      ) {
         return window.showToast(
           "Inicia sessão para continuar.",
           "info"
@@ -559,9 +573,12 @@
       await window.Auth.getProfile();
 
     if (prof) {
-      state.nome = prof.nome || "";
+      state.nome =
+        prof.nome || "";
+
       state.telefone =
         prof.telefone || "";
+
       state.email =
         prof.email || "";
     }
@@ -577,27 +594,30 @@
         ${D.services
           .map(
             (s) => `
-              <button
-                type="button"
-                class="service-opt ${
-                  state.service?.id === s.id
-                    ? "selected"
-                    : ""
-                }"
-                data-svc="${esc(s.id)}"
-              >
-                <span class="so-name">
-                  ${esc(s.name)}
-                </span>
+          <button
+            type="button"
+            class="service-opt ${
+              state.service?.id === s.id
+                ? "selected"
+                : ""
+            }"
+            data-svc="${esc(s.id)}"
+          >
+            <span class="so-name">
+              ${esc(s.name)}
+            </span>
 
-                <span class="so-meta">
-                  <span>${s.duration} min</span>
-                  <span class="so-price">
-                    ${s.price}€
-                  </span>
-                </span>
-              </button>
-            `
+            <span class="so-meta">
+              <span>
+                ${s.duration} min
+              </span>
+
+              <span class="so-price">
+                ${s.price}€
+              </span>
+            </span>
+          </button>
+        `
           )
           .join("")}
       </div>
@@ -644,7 +664,9 @@
         <button
           type="button"
           class="barber-opt ${
-            anySelected ? "selected" : ""
+            anySelected
+              ? "selected"
+              : ""
           }"
           data-barber="any"
         >
@@ -664,36 +686,36 @@
         ${D.team
           .map(
             (t) => `
-              <button
-                type="button"
-                class="barber-opt ${
-                  state.barber?.id === t.id
-                    ? "selected"
-                    : ""
-                }"
-                data-barber="${esc(t.id)}"
-              >
-                <span class="bo-avatar">
-                  ${
-                    t.photo
-                      ? `<img src="${esc(
-                          t.photo
-                        )}" alt="">`
-                      : window.RG.initials(
-                          t.name
-                        )
-                  }
-                </span>
+          <button
+            type="button"
+            class="barber-opt ${
+              state.barber?.id === t.id
+                ? "selected"
+                : ""
+            }"
+            data-barber="${esc(t.id)}"
+          >
+            <span class="bo-avatar">
+              ${
+                t.photo
+                  ? `<img src="${esc(
+                      t.photo
+                    )}" alt="">`
+                  : window.RG.initials(
+                      t.name
+                    )
+              }
+            </span>
 
-                <span class="bo-name">
-                  ${esc(t.name)}
-                </span>
+            <span class="bo-name">
+              ${esc(t.name)}
+            </span>
 
-                <span class="bo-spec">
-                  ${esc(t.specialty)}
-                </span>
-              </button>
-            `
+            <span class="bo-spec">
+              ${esc(t.specialty)}
+            </span>
+          </button>
+        `
           )
           .join("")}
 
@@ -707,9 +729,11 @@
           "click",
           () => {
             if (
-              btn.dataset.barber === "any"
+              btn.dataset.barber ===
+              "any"
             ) {
               state.barber = null;
+
               state.noBarberPref = true;
             } else {
               state.barber =
@@ -740,73 +764,97 @@
   /* ========================================================
      PASSO 3 — DATA
      
-     CORRIGIDO:
-     - começa no dia 1
-     - atravessa meses automaticamente
-     - não depende de RG.addDays()
-     - não depende de RG.parseISO()
-     - mantém YYYY-MM-DD
+     CORREÇÃO:
+     - mostra o mês completo;
+     - começa sempre no dia 1;
+     - dias anteriores ficam bloqueados;
+     - dias fechados ficam bloqueados;
+     - o mês atual é calculado automaticamente;
+     - ao mudar de mês, o calendário acompanha
+       automaticamente a data atual.
      ======================================================== */
 
   function stepDate() {
-    const days = [];
-
     const now = new Date();
 
-    const startYear =
+    const currentYear =
       now.getFullYear();
 
-    const startMonth =
+    const currentMonth =
       now.getMonth();
 
-    const totalDays =
-      Number(D.bookingDaysAhead) || 30;
+    /*
+      Mostra o mês atual completo.
+
+      Exemplo:
+      se hoje for dia 12 de agosto,
+      aparecem:
+      01 Ago
+      02 Ago
+      03 Ago
+      ...
+      31 Ago
+
+      Os dias 01–11 ficam bloqueados.
+    */
+
+    const firstDay = new Date(
+      currentYear,
+      currentMonth,
+      1
+    );
+
+    const lastDay = new Date(
+      currentYear,
+      currentMonth + 1,
+      0
+    );
+
+    const days = [];
 
     for (
-      let i = 0;
-      i < totalDays;
-      i++
+      let day = 1;
+      day <= lastDay.getDate();
+      day++
     ) {
       const d = new Date(
-        startYear,
-        startMonth,
-        1 + i
+        currentYear,
+        currentMonth,
+        day
       );
 
-      const year =
-        d.getFullYear();
-
-      const month =
-        d.getMonth();
-
-      const day =
-        d.getDate();
-
-      const dow =
-        d.getDay();
-
       const dateISO =
-        `${year}-${String(
-          month + 1
-        ).padStart(2, "0")}-${String(
-          day
-        ).padStart(2, "0")}`;
+        RG.toISODate(d);
 
-      const closed =
-        Array.isArray(
-          D.bookingClosedWeekdays
-        ) &&
-        D.bookingClosedWeekdays.includes(
-          dow
+      const dow = d.getDay();
+
+      /*
+        Dia já passado
+      */
+      const isPast =
+        d <
+        new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate()
         );
+
+      /*
+        Dia encerrado pela configuração
+      */
+      const closed =
+        (
+          D.bookingClosedWeekdays ||
+          []
+        ).includes(dow);
 
       days.push({
         date: dateISO,
-        year,
-        month,
-        day,
         dow,
         closed,
+        isPast,
+        disabled:
+          closed || isPast,
       });
     }
 
@@ -821,40 +869,63 @@
     ];
 
     const monNames = [
-      "Jan",
-      "Fev",
-      "Mar",
-      "Abr",
-      "Mai",
-      "Jun",
-      "Jul",
-      "Ago",
-      "Set",
-      "Out",
-      "Nov",
-      "Dez",
+      "Janeiro",
+      "Fevereiro",
+      "Março",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro",
     ];
 
-    body.innerHTML = `
-      <div class="date-options">
+    /*
+      Cabeçalho do mês.
+      É calculado automaticamente pelo JavaScript,
+      portanto não precisas mudar manualmente todos
+      os meses.
+    */
 
+    body.innerHTML = `
+      <div class="booking-month-header">
+        <h3>
+          ${monNames[currentMonth]}
+          ${currentYear}
+        </h3>
+      </div>
+
+      <div class="date-options">
         ${days
-          .map(
-            (d) => `
+          .map((d) => {
+            const dt =
+              RG.parseISO(d.date);
+
+            const sel =
+              state.date === d.date;
+
+            return `
               <button
                 type="button"
                 class="date-opt ${
-                  state.date === d.date
+                  sel
                     ? "selected"
                     : ""
                 } ${
-                  d.closed
+                  d.disabled
                     ? "disabled"
+                    : ""
+                } ${
+                  d.isPast
+                    ? "past"
                     : ""
                 }"
                 data-date="${d.date}"
                 ${
-                  d.closed
+                  d.disabled
                     ? "disabled"
                     : ""
                 }
@@ -865,35 +936,43 @@
                 </span>
 
                 <span class="day">
-                  ${d.day}
+                  ${dt.getDate()}
                 </span>
 
                 <span class="mon">
-                  ${monNames[d.month]}
+                  ${monNames[
+                    dt.getMonth()
+                  ].slice(0, 3)}
                 </span>
 
               </button>
-            `
-          )
+            `;
+          })
           .join("")}
-
       </div>
 
       <p
         style="
           color:var(--muted);
           font-size:.8rem;
-          margin-top:14px;
+          margin-top:14px
         "
       >
-        ${window.RGICONS.info}
-        Os dias encerrados aparecem esbatidos.
+        ${
+          window.RGICONS.info
+        }
+        Os dias que já passaram e os dias
+        encerrados aparecem bloqueados.
       </p>
     `;
 
+    /*
+      Só permite selecionar datas válidas.
+    */
+
     body
       .querySelectorAll(
-        ".date-opt:not(.disabled)"
+        ".date-opt:not(:disabled)"
       )
       .forEach((btn) =>
         btn.addEventListener(
@@ -926,14 +1005,17 @@
   async function stepTime() {
     if (!state.date) {
       state.step = 2;
+
       return render();
     }
 
     body.innerHTML = `
       <div class="b-loading">
         <div class="spinner"></div>
+
         <p>
-          A consultar disponibilidade no Supabase…
+          A consultar disponibilidade
+          no Supabase…
         </p>
       </div>
     `;
@@ -945,6 +1027,7 @@
         );
     } catch (err) {
       state.taken = [];
+
       console.warn(err);
     }
 
@@ -952,9 +1035,7 @@
       state.taken || [];
 
     const slots =
-      Array.isArray(D.bookingSlots)
-        ? D.bookingSlots
-        : [];
+      D.bookingSlots || [];
 
     const timeTaken = (t) =>
       state.barber
@@ -971,6 +1052,7 @@
 
     body.innerHTML = `
       <div class="slot-legend">
+
         <span class="lg-free">
           <i></i>
           Disponível
@@ -980,42 +1062,43 @@
           <i></i>
           Ocupado
         </span>
+
       </div>
 
       <div class="time-options">
-
         ${slots
           .map(
             (t) => `
-              <button
-                type="button"
-                class="time-opt ${
-                  state.time === t
-                    ? "selected"
-                    : ""
-                } ${
-                  timeTaken(t)
-                    ? "disabled"
-                    : ""
-                }"
-                data-time="${t}"
-                ${
-                  timeTaken(t)
-                    ? "disabled"
-                    : ""
-                }
-              >
-                ${t}
-              </button>
-            `
+          <button
+            type="button"
+            class="time-opt ${
+              state.time === t
+                ? "selected"
+                : ""
+            } ${
+              timeTaken(t)
+                ? "disabled"
+                : ""
+            }"
+            data-time="${t}"
+            ${
+              timeTaken(t)
+                ? "disabled"
+                : ""
+            }
+          >
+            ${t}
+          </button>
+        `
           )
           .join("")}
-
       </div>
     `;
 
     body
-      .querySelectorAll(".time-opt")
+      .querySelectorAll(
+        ".time-opt"
+      )
       .forEach((btn) =>
         btn.addEventListener(
           "click",
@@ -1039,7 +1122,7 @@
   }
 
   /* ========================================================
-     PASSO 5 — DADOS
+     PASSO 5 — DADOS PESSOAIS
      ======================================================== */
 
   function stepData() {
@@ -1072,7 +1155,9 @@
       `;
 
       body
-        .querySelector("#bLoginGoogle")
+        .querySelector(
+          "#bLoginGoogle"
+        )
         .addEventListener(
           "click",
           () =>
@@ -1119,6 +1204,7 @@
         </div>
 
         <div class="field full">
+
           <label for="bkEmail">
             Email
           </label>
@@ -1133,6 +1219,7 @@
           <span class="hint">
             O email vem da tua conta Google.
           </span>
+
         </div>
 
       </div>
@@ -1147,13 +1234,15 @@
     iNome.addEventListener(
       "input",
       () =>
-        (state.nome = iNome.value)
+        (state.nome =
+          iNome.value)
     );
 
     iTel.addEventListener(
       "input",
       () =>
-        (state.telefone = iTel.value)
+        (state.telefone =
+          iTel.value)
     );
   }
 
@@ -1163,7 +1252,7 @@
 
   function stepSummary() {
     const dt =
-      parseDateISO(state.date);
+      RG.parseISO(state.date);
 
     const b =
       state.barber || {
@@ -1180,6 +1269,7 @@
 
           <span class="v">
             ${esc(state.service.name)}
+
             <span class="sub">
               ${state.service.duration} min
             </span>
@@ -1202,7 +1292,14 @@
           </span>
 
           <span class="v">
-            ${formatDatePT(state.date)}
+            ${dt
+              .getDate()
+              .toString()
+              .padStart(2, "0")}/${(
+              dt.getMonth() + 1
+            )
+              .toString()
+              .padStart(2, "0")}/${dt.getFullYear()}
           </span>
         </div>
 
@@ -1251,6 +1348,11 @@
     const b =
       bk.barber_name || "—";
 
+    const dt =
+      RG.parseISO(
+        bk.booking_date
+      );
+
     body.innerHTML = `
       <div class="b-success">
 
@@ -1264,7 +1366,8 @@
         </h3>
 
         <p>
-          Obrigado! Enviámos-te a confirmação.
+          Obrigado! Enviámos-te
+          a confirmação.
           Vemo-nos na barbearia.
         </p>
 
@@ -1296,9 +1399,14 @@
             </span>
 
             <span class="v">
-              ${formatDatePT(
-                bk.booking_date
-              )}
+              ${dt
+                .getDate()
+                .toString()
+                .padStart(2, "0")}/${(
+                dt.getMonth() + 1
+              )
+                .toString()
+                .padStart(2, "0")}/${dt.getFullYear()}
             </span>
           </div>
 
@@ -1350,12 +1458,15 @@
 
     body
       .querySelector("#goBookings")
-      .addEventListener("click", () => {
-        close();
+      .addEventListener(
+        "click",
+        () => {
+          close();
 
-        window.location.href =
-          "profile.html#minhas-marcacoes";
-      });
+          window.location.href =
+            "profile.html#minhas-marcacoes";
+        }
+      );
 
     body
       .querySelector("#closeBooking")
@@ -1370,7 +1481,8 @@
      ======================================================== */
 
   async function confirmBooking() {
-    if (state.submitting) return;
+    if (state.submitting)
+      return;
 
     state.submitting = true;
 
@@ -1431,12 +1543,7 @@
 
         return render();
       }
-    } catch (err) {
-      console.warn(
-        "Não foi possível verificar disponibilidade:",
-        err
-      );
-    }
+    } catch (err) {}
 
     try {
       const booking =
@@ -1458,13 +1565,15 @@
         const prof =
           await window.Auth.getProfile();
 
-        await window.Auth.updateProfile({
-          nome:
-            state.nome.trim(),
+        await window.Auth.updateProfile(
+          {
+            nome:
+              state.nome.trim(),
 
-          telefone:
-            state.telefone.trim(),
-        });
+            telefone:
+              state.telefone.trim(),
+          }
+        );
 
         void prof;
       } catch (err) {
@@ -1500,47 +1609,6 @@
 
       render();
     }
-  }
-
-  /* ========================================================
-     HELPERS DE DATA
-     ======================================================== */
-
-  function parseDateISO(value) {
-    if (!value) {
-      return new Date();
-    }
-
-    const parts =
-      String(value).split("-");
-
-    if (parts.length !== 3) {
-      return new Date(value);
-    }
-
-    return new Date(
-      Number(parts[0]),
-      Number(parts[1]) - 1,
-      Number(parts[2])
-    );
-  }
-
-  function formatDatePT(value) {
-    const d =
-      parseDateISO(value);
-
-    return (
-      String(d.getDate()).padStart(
-        2,
-        "0"
-      ) +
-      "/" +
-      String(
-        d.getMonth() + 1
-      ).padStart(2, "0") +
-      "/" +
-      d.getFullYear()
-    );
   }
 
   /* ========================================================
