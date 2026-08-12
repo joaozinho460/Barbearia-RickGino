@@ -1,33 +1,48 @@
 ```javascript
-/* ============================================================
-   Barbearia RickGino — bookings.js
-   Fluxo de marcação em 7 passos + camada de dados
-   Compatível com a tabela public.booking do Supabase.
-   ============================================================ */
-
 "use strict";
 
 (function () {
   const D = window.SITE_DATA;
   const RG = window.RG;
 
-  /* ========================================================
+  /* ============================================================
      BOOKINGS STORE
-     ======================================================== */
+     Compatível com:
+     public.booking
+     
+     id
+     created_at
+     Nome
+     E-mail
+     Serviço
+     Barbeiro
+     Data
+     Hora
+     Status
+     used_id
+     ============================================================ */
+
   const Store = {
+
     async listAll() {
       const auth = window.Auth;
 
       if (auth.isDemo()) {
-        const all = JSON.parse(localStorage.getItem("rg_bookings") || "[]");
-        const prof = auth.getUser();
+        const all = JSON.parse(
+          localStorage.getItem("rg_bookings") || "[]"
+        );
 
-        if (!prof) return [];
+        const user = auth.getUser();
 
-        return all.filter((b) => b.used_id === prof.id);
+        if (!user) return [];
+
+        return all.filter(
+          b => b.used_id === user.id
+        );
       }
 
       const user = auth.getUser();
+
       if (!user) return [];
 
       const { data, error } = await auth
@@ -35,7 +50,7 @@
         .from("booking")
         .select("*")
         .eq("used_id", user.id)
-        .order("Data", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
@@ -44,18 +59,29 @@
 
     async upcoming() {
       const all = await Store.listAll();
+
       const today = RG.toISODate(new Date());
 
       return all
-        .filter(
-          (b) =>
-            String(b.Status || "").toLowerCase() === "confirmada" &&
-            String(b.Data || "") >= today
-        )
+        .filter(b => {
+          const status =
+            String(b["Status"] || "").toLowerCase();
+
+          return (
+            status === "confirmada" &&
+            String(b["Data"] || "") >= today
+          );
+        })
         .sort((a, b) => {
-          const dateA = String(a.Data || "") + String(a.Hora || "");
-          const dateB = String(b.Data || "") + String(b.Hora || "");
-          return dateA.localeCompare(dateB);
+          const da =
+            String(a["Data"] || "") +
+            String(a["Hora"] || "");
+
+          const db =
+            String(b["Data"] || "") +
+            String(b["Hora"] || "");
+
+          return da.localeCompare(db);
         });
     },
 
@@ -63,34 +89,43 @@
       const all = await Store.listAll();
 
       return (
-        all.find((b) => String(b.id) === String(id)) || null
+        all.find(
+          b => String(b.id) === String(id)
+        ) || null
       );
     },
 
-    /* ======================================================
+    /* ============================================================
        CRIAR MARCAÇÃO
-       ====================================================== */
+       ============================================================ */
+
     async create(payload) {
       const auth = window.Auth;
+
       const user = auth.getUser();
 
       if (!user) {
-        throw new Error("Utilizador não autenticado.");
+        throw new Error(
+          "Utilizador não autenticado."
+        );
       }
+
+      /* ---------------- DEMO ---------------- */
 
       if (auth.isDemo()) {
         const all = JSON.parse(
           localStorage.getItem("rg_bookings") || "[]"
         );
 
-        const now = new Date().toISOString();
-
         const rec = {
           id:
             "bk_" +
-            Math.random().toString(36).slice(2, 12),
+            Math.random()
+              .toString(36)
+              .slice(2, 12),
 
-          used_id: user.id,
+          created_at:
+            new Date().toISOString(),
 
           Nome: payload.nome || "",
           "E-mail": payload.email || "",
@@ -98,9 +133,9 @@
           "Barbeiro": payload.barber_name || "",
           "Data": payload.booking_date || "",
           "Hora": payload.booking_time || "",
-          Status: "confirmada",
+          "Status": "confirmada",
 
-          created_at: now,
+          used_id: user.id
         };
 
         all.push(rec);
@@ -113,72 +148,92 @@
         return rec;
       }
 
+      /* ---------------- SUPABASE ---------------- */
+
+      const insertData = {
+        "Nome": payload.nome || "",
+        "E-mail": payload.email || "",
+        "Serviço": payload.service_name || "",
+        "Barbeiro": payload.barber_name || "",
+        "Data": payload.booking_date || null,
+        "Hora": payload.booking_time || null,
+        "Status": "confirmada",
+        "used_id": user.id
+      };
+
+      console.log(
+        "Inserindo marcação:",
+        insertData
+      );
+
       const { data, error } = await auth
         .getClient()
         .from("booking")
-        .insert([
-          {
-            "Nome": payload.nome || "",
-            "E-mail": payload.email || "",
-            "Serviço": payload.service_name || "",
-            "Barbeiro": payload.barber_name || "",
-            "Data": payload.booking_date || null,
-            "Hora": payload.booking_time || null,
-            "Status": "confirmada",
-            used_id: user.id,
-          },
-        ])
+        .insert(insertData)
         .select()
         .single();
 
       if (error) {
-        console.error("Erro Supabase ao criar marcação:", error);
+        console.error(
+          "ERRO SUPABASE BOOKING:",
+          error
+        );
+
         throw error;
       }
 
       return data;
     },
 
-    /* ======================================================
+    /* ============================================================
        CANCELAR
-       ====================================================== */
+       ============================================================ */
+
     async cancel(id) {
       const auth = window.Auth;
+
+      const user = auth.getUser();
+
+      if (!user) {
+        throw new Error(
+          "Utilizador não autenticado."
+        );
+      }
 
       if (auth.isDemo()) {
         const all = JSON.parse(
           localStorage.getItem("rg_bookings") || "[]"
         );
 
-        const idx = all.findIndex(
-          (b) => String(b.id) === String(id)
-        );
+        const index =
+          all.findIndex(
+            b =>
+              String(b.id) ===
+              String(id)
+          );
 
-        if (idx === -1) {
-          throw new Error("Marcação não encontrada.");
+        if (index === -1) {
+          throw new Error(
+            "Marcação não encontrada."
+          );
         }
 
-        all[idx].Status = "cancelada";
+        all[index]["Status"] =
+          "cancelada";
 
         localStorage.setItem(
           "rg_bookings",
           JSON.stringify(all)
         );
 
-        return all[idx];
-      }
-
-      const user = auth.getUser();
-
-      if (!user) {
-        throw new Error("Utilizador não autenticado.");
+        return all[index];
       }
 
       const { data, error } = await auth
         .getClient()
         .from("booking")
         .update({
-          Status: "cancelada",
+          "Status": "cancelada"
         })
         .eq("id", id)
         .eq("used_id", user.id)
@@ -190,9 +245,10 @@
       return data;
     },
 
-    /* ======================================================
+    /* ============================================================
        HORÁRIOS OCUPADOS
-       ====================================================== */
+       ============================================================ */
+
     async getTakenSlots(dateISO) {
       const auth = window.Auth;
 
@@ -202,53 +258,68 @@
         );
 
         return all
-          .filter(
-            (b) =>
-              String(b.Status || "").toLowerCase() !==
-                "cancelada" &&
-              String(b.Data) === String(dateISO)
-          )
-          .map((b) => ({
-            booking_time: String(b.Hora || "").slice(0, 5),
-            barber_name: b["Barbeiro"],
+          .filter(b => {
+            return (
+              String(b["Data"]) ===
+                String(dateISO) &&
+              String(
+                b["Status"] || ""
+              ).toLowerCase() !==
+                "cancelada"
+            );
+          })
+          .map(b => ({
+            booking_time:
+              String(
+                b["Hora"] || ""
+              ).slice(0, 5),
+
+            barber_name:
+              b["Barbeiro"]
           }));
       }
 
-      try {
-        const { data, error } = await auth
-          .getClient()
-          .from("booking")
-          .select('"Hora", "Barbeiro", "Data", "Status"')
-          .eq('"Data"', dateISO);
+      const { data, error } = await auth
+        .getClient()
+        .from("booking")
+        .select('"Hora", "Barbeiro", "Data", "Status"')
+        .eq("Data", dateISO);
 
-        if (error) throw error;
-
-        return (data || [])
-          .filter(
-            (b) =>
-              String(b.Status || "").toLowerCase() !==
-              "cancelada"
-          )
-          .map((b) => ({
-            booking_time: String(b["Hora"] || "").slice(0, 5),
-            barber_name: b["Barbeiro"],
-          }));
-      } catch (err) {
+      if (error) {
         console.warn(
-          "Não foi possível consultar horários:",
-          err?.message
+          "Erro ao consultar horários:",
+          error
         );
 
         return [];
       }
-    },
+
+      return (data || [])
+        .filter(b => {
+          return (
+            String(
+              b["Status"] || ""
+            ).toLowerCase() !==
+            "cancelada"
+          );
+        })
+        .map(b => ({
+          booking_time:
+            String(
+              b["Hora"] || ""
+            ).slice(0, 5),
+
+          barber_name:
+            b["Barbeiro"]
+        }));
+    }
   };
 
   window.BookingsStore = Store;
 
-  /* ========================================================
+  /* ============================================================
      WIZARD
-     ======================================================== */
+     ============================================================ */
 
   const Steps = [
     "Serviço",
@@ -257,11 +328,12 @@
     "Horário",
     "Dados",
     "Resumo",
-    "Confirmado",
+    "Confirmado"
   ];
 
   const state = {
     step: 0,
+
     service: null,
     barber: null,
     noBarberPref: true,
@@ -276,44 +348,62 @@
     taken: [],
 
     submitting: false,
-    lastBooking: null,
+    lastBooking: null
   };
 
-  let modal,
-    body,
-    dots,
-    foot,
-    backBtn,
-    nextBtn,
-    stepTitle,
-    stepLabel;
+  let modal;
+  let body;
+  let dots;
+  let foot;
+  let backBtn;
+  let nextBtn;
+  let stepTitle;
+  let stepLabel;
 
-  /* ========================================================
-     ABRIR
-     ======================================================== */
+  /* ============================================================
+     OPEN
+     ============================================================ */
 
   function open(opts = {}) {
+    if (!modal) {
+      init();
+    }
+
+    if (!modal) {
+      console.error(
+        "bookingModal não encontrado."
+      );
+
+      return;
+    }
+
     resetState();
 
     if (opts.serviceId) {
       state.service =
         D.services.find(
-          (s) => s.id === opts.serviceId
+          s =>
+            s.id ===
+            opts.serviceId
         ) || null;
     }
 
     if (opts.barberId) {
       state.barber =
         D.team.find(
-          (t) => t.id === opts.barberId
+          t =>
+            t.id ===
+            opts.barberId
         ) || null;
 
-      state.noBarberPref = !state.barber;
+      state.noBarberPref =
+        !state.barber;
     }
 
     modal.classList.add("open");
 
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow =
+      "hidden";
 
     render();
   }
@@ -322,7 +412,9 @@
     if (!modal) return;
 
     modal.classList.remove("open");
-    document.body.style.overflow = "";
+
+    document.body.style.overflow =
+      "";
   }
 
   function resetState() {
@@ -345,89 +437,180 @@
     state.lastBooking = null;
   }
 
-  /* ========================================================
+  /* ============================================================
      INIT
-     ======================================================== */
+     ============================================================ */
 
   function init() {
-    modal = document.getElementById("bookingModal");
+    modal =
+      document.getElementById(
+        "bookingModal"
+      );
 
     if (!modal) return;
 
-    body = document.getElementById("bookingStep");
-    dots = document.getElementById("bookingDots");
-    foot = document.getElementById("bookingFoot");
-    backBtn = document.getElementById("bookingBack");
-    nextBtn = document.getElementById("bookingNext");
+    body =
+      document.getElementById(
+        "bookingStep"
+      );
+
+    dots =
+      document.getElementById(
+        "bookingDots"
+      );
+
+    foot =
+      document.getElementById(
+        "bookingFoot"
+      );
+
+    backBtn =
+      document.getElementById(
+        "bookingBack"
+      );
+
+    nextBtn =
+      document.getElementById(
+        "bookingNext"
+      );
 
     stepLabel =
-      document.getElementById("bookingStepLabel");
+      document.getElementById(
+        "bookingStepLabel"
+      );
 
     stepTitle =
-      document.getElementById("bookingStepTitle");
+      document.getElementById(
+        "bookingStepTitle"
+      );
 
     document
       .getElementById("bookingClose")
-      ?.addEventListener("click", close);
+      ?.addEventListener(
+        "click",
+        close
+      );
 
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) close();
-    });
-
-    document.addEventListener("keydown", (e) => {
-      if (
-        e.key === "Escape" &&
-        modal.classList.contains("open")
-      ) {
-        close();
+    modal.addEventListener(
+      "click",
+      e => {
+        if (
+          e.target === modal
+        ) {
+          close();
+        }
       }
-    });
+    );
 
-    backBtn.addEventListener("click", () => {
-      if (state.step === 6) return;
-
-      state.step--;
-
-      if (state.step === 4) {
-        refreshStepData();
+    document.addEventListener(
+      "keydown",
+      e => {
+        if (
+          e.key === "Escape" &&
+          modal.classList.contains(
+            "open"
+          )
+        ) {
+          close();
+        }
       }
+    );
 
-      render();
-    });
+    if (backBtn) {
+      backBtn.addEventListener(
+        "click",
+        () => {
+          if (
+            state.step === 6
+          ) {
+            return;
+          }
 
-    nextBtn.addEventListener("click", onNext);
+          state.step--;
 
-    window.Auth.setOnAuthChange(() => {
-      if (!modal.classList.contains("open")) return;
+          if (
+            state.step === 4
+          ) {
+            refreshStepData();
+          }
 
-      if (state.step === 4) {
-        refreshStepData();
-      }
+          render();
+        }
+      );
+    }
 
-      render();
-    });
+    if (nextBtn) {
+      nextBtn.addEventListener(
+        "click",
+        onNext
+      );
+    }
+
+    if (
+      window.Auth &&
+      typeof window.Auth
+        .setOnAuthChange ===
+        "function"
+    ) {
+      window.Auth.setOnAuthChange(
+        () => {
+          if (
+            modal &&
+            modal.classList.contains(
+              "open"
+            )
+          ) {
+            if (
+              state.step === 4
+            ) {
+              refreshStepData();
+            }
+
+            render();
+          }
+        }
+      );
+    }
   }
 
-  /* ========================================================
+  /* ============================================================
      RENDER
-     ======================================================== */
+     ============================================================ */
 
   function render() {
-    const s = state.step;
+    if (
+      !body ||
+      !stepLabel ||
+      !stepTitle ||
+      !dots ||
+      !foot ||
+      !backBtn ||
+      !nextBtn
+    ) {
+      return;
+    }
 
-    if (!stepLabel || !stepTitle || !body) return;
+    const s = state.step;
 
     stepLabel.textContent =
       `Passo ${s + 1} de ${Steps.length}`;
 
-    stepTitle.textContent = Steps[s];
+    stepTitle.textContent =
+      Steps[s];
 
-    dots.innerHTML = Steps.map(
-      (_, i) =>
-        `<span class="step-dot ${
-          i === s ? "active" : ""
-        } ${i < s ? "done" : ""}"></span>`
-    ).join("");
+    dots.innerHTML =
+      Steps.map(
+        (_, i) =>
+          `<span class="step-dot ${
+            i === s
+              ? "active"
+              : ""
+          } ${
+            i < s
+              ? "done"
+              : ""
+          }"></span>`
+      ).join("");
 
     body.innerHTML = "";
 
@@ -438,57 +621,66 @@
       stepTime,
       stepData,
       stepSummary,
-      stepSuccess,
+      stepSuccess
     ];
 
     try {
       renderers[s]();
-    } catch (err) {
+    } catch (error) {
       console.error(
-        "Erro ao carregar passo:",
-        err
+        "Erro no passo:",
+        error
       );
 
       body.innerHTML = `
         <div class="b-auth-required">
-          <span class="auth-ic">
-            ${window.RGICONS?.info || ""}
-          </span>
-
-          <p>Não foi possível carregar este passo.</p>
+          <p>
+            Não foi possível carregar este passo.
+          </p>
         </div>
       `;
     }
 
     foot.style.display =
-      s === 6 ? "none" : "flex";
+      s === 6
+        ? "none"
+        : "flex";
 
     backBtn.style.visibility =
-      s === 0 ? "hidden" : "visible";
+      s === 0
+        ? "hidden"
+        : "visible";
 
     if (s === 5) {
       nextBtn.innerHTML =
         `${window.RGICONS.check}<span>Confirmar marcação</span>`;
 
-      nextBtn.classList.add("btn-gold");
+      nextBtn.classList.add(
+        "btn-gold"
+      );
 
-      nextBtn.disabled = state.submitting;
+      nextBtn.disabled =
+        state.submitting;
     } else {
       nextBtn.innerHTML =
         `Continuar ${window.RGICONS.arrowRight}`;
 
-      nextBtn.classList.add("btn-gold");
+      nextBtn.classList.add(
+        "btn-gold"
+      );
 
-      nextBtn.disabled = false;
+      nextBtn.disabled =
+        false;
     }
   }
 
-  /* ========================================================
+  /* ============================================================
      NEXT
-     ======================================================== */
+     ============================================================ */
 
   async function onNext() {
-    const s = state.step;
+    const s =
+      state.step;
 
     if (
       s === 0 &&
@@ -532,21 +724,27 @@
     }
 
     if (s === 4) {
-      if (!window.Auth.isLoggedIn()) {
+      if (
+        !window.Auth.isLoggedIn()
+      ) {
         return window.showToast(
           "Inicia sessão para continuar.",
           "info"
         );
       }
 
-      if (!state.nome.trim()) {
+      if (
+        !state.nome.trim()
+      ) {
         return window.showToast(
           "Indica o teu nome.",
           "error"
         );
       }
 
-      if (!state.telefone.trim()) {
+      if (
+        !state.telefone.trim()
+      ) {
         return window.showToast(
           "Indica o teu telefone.",
           "error"
@@ -555,92 +753,115 @@
     }
 
     if (s === 5) {
-      confirmBooking();
+      await confirmBooking();
       return;
     }
 
     state.step++;
 
-    if (state.step === 4) {
+    if (
+      state.step === 4
+    ) {
       await refreshStepData();
     }
 
     render();
   }
 
-  /* ========================================================
+  /* ============================================================
      PROFILE
-     ======================================================== */
+     ============================================================ */
 
   async function refreshStepData() {
     try {
       const prof =
-        await window.Auth.getProfile();
+        await window.Auth
+          .getProfile();
 
       if (prof) {
-        state.nome = prof.nome || "";
-        state.telefone = prof.telefone || "";
-        state.email = prof.email || "";
+        state.nome =
+          prof.nome || "";
+
+        state.telefone =
+          prof.telefone || "";
+
+        state.email =
+          prof.email || "";
       }
-    } catch (err) {
+    } catch (error) {
       console.warn(
-        "Não foi possível carregar perfil:",
-        err?.message
+        "Erro ao carregar perfil:",
+        error
       );
     }
   }
 
-  /* ========================================================
-     SERVIÇO
-     ======================================================== */
+  /* ============================================================
+     STEP 1
+     ============================================================ */
 
   function stepService() {
     body.innerHTML = `
       <div class="service-options">
+
         ${D.services
           .map(
-            (s) => `
+            s => `
               <button
                 type="button"
                 class="service-opt ${
-                  state.service?.id === s.id
+                  state.service?.id ===
+                  s.id
                     ? "selected"
                     : ""
                 }"
-                data-svc="${esc(s.id)}"
+                data-svc="${esc(
+                  s.id
+                )}"
               >
+
                 <span class="so-name">
                   ${esc(s.name)}
                 </span>
 
                 <span class="so-meta">
-                  <span>${s.duration} min</span>
+                  <span>
+                    ${s.duration} min
+                  </span>
+
                   <span class="so-price">
                     ${s.price}€
                   </span>
                 </span>
+
               </button>
             `
           )
           .join("")}
+
       </div>
     `;
 
     body
-      .querySelectorAll(".service-opt")
-      .forEach((btn) => {
+      .querySelectorAll(
+        ".service-opt"
+      )
+      .forEach(btn => {
         btn.addEventListener(
           "click",
           () => {
             state.service =
               D.services.find(
-                (s) =>
-                  s.id === btn.dataset.svc
+                s =>
+                  s.id ===
+                  btn.dataset.svc
               );
 
             body
-              .querySelectorAll(".service-opt")
-              .forEach((b) =>
+              .querySelectorAll(
+                ".service-opt"
+              )
+              .forEach(b =>
                 b.classList.toggle(
                   "selected",
                   b === btn
@@ -651,24 +872,24 @@
       });
   }
 
-  /* ========================================================
-     BARBEIRO
-     ======================================================== */
+  /* ============================================================
+     STEP 2
+     ============================================================ */
 
   function stepBarber() {
-    const anySelected =
-      state.noBarberPref;
-
     body.innerHTML = `
       <div class="barber-options">
 
         <button
           type="button"
           class="barber-opt ${
-            anySelected ? "selected" : ""
+            state.noBarberPref
+              ? "selected"
+              : ""
           }"
           data-barber="any"
         >
+
           <span class="bo-avatar">
             ${window.RGICONS.scissors}
           </span>
@@ -680,21 +901,27 @@
           <span class="badge-any">
             Primeiro disponível
           </span>
+
         </button>
 
         ${D.team
           .map(
-            (t) => `
+            t => `
               <button
                 type="button"
                 class="barber-opt ${
-                  state.barber?.id === t.id
+                  state.barber?.id ===
+                  t.id
                     ? "selected"
                     : ""
                 }"
-                data-barber="${esc(t.id)}"
+                data-barber="${esc(
+                  t.id
+                )}"
               >
+
                 <span class="bo-avatar">
+
                   ${
                     t.photo
                       ? `<img src="${esc(
@@ -704,6 +931,7 @@
                           t.name
                         )
                   }
+
                 </span>
 
                 <span class="bo-name">
@@ -711,8 +939,11 @@
                 </span>
 
                 <span class="bo-spec">
-                  ${esc(t.specialty)}
+                  ${esc(
+                    t.specialty
+                  )}
                 </span>
+
               </button>
             `
           )
@@ -722,30 +953,39 @@
     `;
 
     body
-      .querySelectorAll(".barber-opt")
-      .forEach((btn) => {
+      .querySelectorAll(
+        ".barber-opt"
+      )
+      .forEach(btn => {
         btn.addEventListener(
           "click",
           () => {
             if (
-              btn.dataset.barber === "any"
+              btn.dataset.barber ===
+              "any"
             ) {
-              state.barber = null;
-              state.noBarberPref = true;
+              state.barber =
+                null;
+
+              state.noBarberPref =
+                true;
             } else {
               state.barber =
                 D.team.find(
-                  (t) =>
+                  t =>
                     t.id ===
                     btn.dataset.barber
                 );
 
-              state.noBarberPref = false;
+              state.noBarberPref =
+                false;
             }
 
             body
-              .querySelectorAll(".barber-opt")
-              .forEach((b) =>
+              .querySelectorAll(
+                ".barber-opt"
+              )
+              .forEach(b =>
                 b.classList.toggle(
                   "selected",
                   b === btn
@@ -756,33 +996,43 @@
       });
   }
 
-  /* ========================================================
-     DATA
-     ======================================================== */
+  /* ============================================================
+     STEP 3 — DATA
+     ============================================================ */
 
   function stepDate() {
     const days = [];
 
-    const now = new Date();
+    const now =
+      new Date();
 
     for (
       let i = 0;
-      i < (D.bookingDaysAhead || 14);
+      i <
+      (D.bookingDaysAhead ||
+        14);
       i++
     ) {
       const d =
-        RG.addDays(now, i);
+        RG.addDays(
+          now,
+          i
+        );
 
-      const dow = d.getDay();
+      const dow =
+        d.getDay();
 
       const closed =
-        (D.bookingClosedWeekdays || [])
-          .includes(dow);
+        (
+          D.bookingClosedWeekdays ||
+          []
+        ).includes(dow);
 
       days.push({
-        date: RG.toISODate(d),
+        date:
+          RG.toISODate(d),
         dow,
-        closed,
+        closed
       });
     }
 
@@ -793,7 +1043,7 @@
       "Qua",
       "Qui",
       "Sex",
-      "Sáb",
+      "Sáb"
     ];
 
     const monNames = [
@@ -808,33 +1058,43 @@
       "Set",
       "Out",
       "Nov",
-      "Dez",
+      "Dez"
     ];
 
     body.innerHTML = `
       <div class="date-options">
 
         ${days
-          .map((d) => {
+          .map(d => {
             const dt =
-              RG.parseISO(d.date);
+              RG.parseISO(
+                d.date
+              );
 
-            const sel =
-              state.date === d.date;
+            const selected =
+              state.date ===
+              d.date;
 
             return `
               <button
                 type="button"
                 class="date-opt ${
-                  sel ? "selected" : ""
+                  selected
+                    ? "selected"
+                    : ""
                 } ${
                   d.closed
                     ? "disabled"
                     : ""
                 }"
                 data-date="${d.date}"
-                ${d.closed ? "disabled" : ""}
+                ${
+                  d.closed
+                    ? "disabled"
+                    : ""
+                }
               >
+
                 <span class="dow">
                   ${dowNames[d.dow]}
                 </span>
@@ -844,8 +1104,13 @@
                 </span>
 
                 <span class="mon">
-                  ${monNames[dt.getMonth()]}
+                  ${
+                    monNames[
+                      dt.getMonth()
+                    ]
+                  }
                 </span>
+
               </button>
             `;
           })
@@ -864,16 +1129,15 @@
     `;
 
     body
-      .querySelectorAll(".date-opt")
-      .forEach((btn) => {
+      .querySelectorAll(
+        ".date-opt"
+      )
+      .forEach(btn => {
         btn.addEventListener(
           "click",
           () => {
             if (
-              btn.disabled ||
-              btn.classList.contains(
-                "disabled"
-              )
+              btn.disabled
             ) {
               return;
             }
@@ -881,11 +1145,14 @@
             state.date =
               btn.dataset.date;
 
-            state.time = null;
+            state.time =
+              null;
 
             body
-              .querySelectorAll(".date-opt")
-              .forEach((b) =>
+              .querySelectorAll(
+                ".date-opt"
+              )
+              .forEach(b =>
                 b.classList.toggle(
                   "selected",
                   b === btn
@@ -896,20 +1163,26 @@
       });
   }
 
-  /* ========================================================
-     HORÁRIO
-     ======================================================== */
+  /* ============================================================
+     STEP 4 — HORÁRIO
+     ============================================================ */
 
   async function stepTime() {
     if (!state.date) {
       state.step = 2;
+
       return render();
     }
 
     body.innerHTML = `
       <div class="b-loading">
+
         <div class="spinner"></div>
-        <p>A consultar disponibilidade...</p>
+
+        <p>
+          A consultar disponibilidade...
+        </p>
+
       </div>
     `;
 
@@ -918,10 +1191,12 @@
         await Store.getTakenSlots(
           state.date
         );
-    } catch (err) {
-      state.taken = [];
+    } catch (error) {
+      console.warn(
+        error
+      );
 
-      console.warn(err);
+      state.taken = [];
     }
 
     const taken =
@@ -930,37 +1205,47 @@
     const slots =
       D.bookingSlots || [];
 
-    const timeTaken = (t) => {
-      if (state.barber) {
-        return taken.some(
-          (x) =>
-            x.booking_time === t &&
-            x.barber_name ===
-              state.barber.name
-        );
-      }
+    const timeTaken =
+      t => {
+        if (
+          state.barber
+        ) {
+          return taken.some(
+            x =>
+              x.booking_time ===
+                t &&
+              x.barber_name ===
+                state.barber
+                  .name
+          );
+        }
 
-      return taken.some(
-        (x) =>
-          x.booking_time === t
-      );
-    };
+        return taken.some(
+          x =>
+            x.booking_time ===
+            t
+        );
+      };
 
     body.innerHTML = `
       <div class="slot-legend">
+
         <span class="lg-free">
-          <i></i>Disponível
+          <i></i>
+          Disponível
         </span>
 
         <span class="lg-taken">
-          <i></i>Ocupado
+          <i></i>
+          Ocupado
         </span>
+
       </div>
 
       <div class="time-options">
 
         ${slots
-          .map((t) => {
+          .map(t => {
             const occupied =
               timeTaken(t);
 
@@ -968,7 +1253,8 @@
               <button
                 type="button"
                 class="time-opt ${
-                  state.time === t
+                  state.time ===
+                  t
                     ? "selected"
                     : ""
                 } ${
@@ -976,7 +1262,9 @@
                     ? "disabled"
                     : ""
                 }"
-                data-time="${esc(t)}"
+                data-time="${esc(
+                  t
+                )}"
                 ${
                   occupied
                     ? "disabled"
@@ -993,19 +1281,27 @@
     `;
 
     body
-      .querySelectorAll(".time-opt")
-      .forEach((btn) => {
+      .querySelectorAll(
+        ".time-opt"
+      )
+      .forEach(btn => {
         btn.addEventListener(
           "click",
           () => {
-            if (btn.disabled) return;
+            if (
+              btn.disabled
+            ) {
+              return;
+            }
 
             state.time =
               btn.dataset.time;
 
             body
-              .querySelectorAll(".time-opt")
-              .forEach((b) =>
+              .querySelectorAll(
+                ".time-opt"
+              )
+              .forEach(b =>
                 b.classList.toggle(
                   "selected",
                   b === btn
@@ -1016,9 +1312,9 @@
       });
   }
 
-  /* ========================================================
-     DADOS
-     ======================================================== */
+  /* ============================================================
+     STEP 5 — DADOS
+     ============================================================ */
 
   function stepData() {
     const logged =
@@ -1049,11 +1345,15 @@
         </div>
       `;
 
-      body
-        .querySelector("#bLoginGoogle")
-        .addEventListener(
+      const login =
+        body.querySelector(
+          "#bLoginGoogle"
+        );
+
+      if (login) {
+        login.addEventListener(
           "click",
-          () =>
+          () => {
             window.Auth
               .signInWithGoogle()
               .catch(() =>
@@ -1061,8 +1361,10 @@
                   "Login falhou. Tenta novamente.",
                   "error"
                 )
-              )
+              );
+          }
         );
+      }
 
       return;
     }
@@ -1071,6 +1373,7 @@
       <div class="b-form">
 
         <div class="field">
+
           <label for="bkNome">
             Nome
           </label>
@@ -1078,12 +1381,16 @@
           <input
             id="bkNome"
             type="text"
-            value="${esc(state.nome)}"
+            value="${esc(
+              state.nome
+            )}"
             placeholder="O teu nome"
           >
+
         </div>
 
         <div class="field">
+
           <label for="bkTel">
             Telefone
           </label>
@@ -1091,12 +1398,16 @@
           <input
             id="bkTel"
             type="tel"
-            value="${esc(state.telefone)}"
+            value="${esc(
+              state.telefone
+            )}"
             placeholder="+351 ..."
           >
+
         </div>
 
         <div class="field full">
+
           <label for="bkEmail">
             Email
           </label>
@@ -1104,44 +1415,55 @@
           <input
             id="bkEmail"
             type="email"
-            value="${esc(state.email)}"
+            value="${esc(
+              state.email
+            )}"
             disabled
           >
 
           <span class="hint">
             O email vem da tua conta Google.
           </span>
+
         </div>
 
       </div>
     `;
 
     const iNome =
-      body.querySelector("#bkNome");
+      body.querySelector(
+        "#bkNome"
+      );
 
     const iTel =
-      body.querySelector("#bkTel");
+      body.querySelector(
+        "#bkTel"
+      );
 
-    iNome.addEventListener(
-      "input",
-      () => {
-        state.nome =
-          iNome.value;
-      }
-    );
+    if (iNome) {
+      iNome.addEventListener(
+        "input",
+        () => {
+          state.nome =
+            iNome.value;
+        }
+      );
+    }
 
-    iTel.addEventListener(
-      "input",
-      () => {
-        state.telefone =
-          iTel.value;
-      }
-    );
+    if (iTel) {
+      iTel.addEventListener(
+        "input",
+        () => {
+          state.telefone =
+            iTel.value;
+        }
+      );
+    }
   }
 
-  /* ========================================================
-     RESUMO
-     ======================================================== */
+  /* ============================================================
+     STEP 6 — RESUMO
+     ============================================================ */
 
   function stepSummary() {
     if (
@@ -1151,11 +1473,13 @@
     ) {
       body.innerHTML = `
         <div class="b-auth-required">
+
           <p>
             Faltam dados da marcação.
-            Volta atrás e confirma o serviço,
-            data e horário.
+            Volta atrás e seleciona
+            o serviço, data e horário.
           </p>
+
         </div>
       `;
 
@@ -1163,94 +1487,126 @@
     }
 
     const dt =
-      RG.parseISO(state.date);
+      RG.parseISO(
+        state.date
+      );
 
     const b =
       state.barber || {
-        name: "Sem preferência",
+        name:
+          "Sem preferência"
       };
 
     body.innerHTML = `
       <div class="b-summary">
 
         <div class="sum-row">
+
           <span class="k">
             Serviço
           </span>
 
           <span class="v">
-            ${esc(state.service.name)}
+            ${esc(
+              state.service.name
+            )}
 
             <span class="sub">
-              ${state.service.duration} min
+              ${
+                state.service
+                  .duration
+              } min
             </span>
           </span>
+
         </div>
 
         <div class="sum-row">
+
           <span class="k">
             Barbeiro
           </span>
 
           <span class="v">
-            ${esc(b.name)}
+            ${esc(
+              b.name
+            )}
           </span>
+
         </div>
 
         <div class="sum-row">
+
           <span class="k">
             Data
           </span>
 
           <span class="v">
-            ${dt
-              .getDate()
-              .toString()
-              .padStart(2, "0")}/${(
+            ${String(
+              dt.getDate()
+            ).padStart(
+              2,
+              "0"
+            )}/${String(
               dt.getMonth() + 1
-            )
-              .toString()
-              .padStart(2, "0")}/${dt.getFullYear()}
+            ).padStart(
+              2,
+              "0"
+            )}/${dt.getFullYear()}
           </span>
+
         </div>
 
         <div class="sum-row">
+
           <span class="k">
             Hora
           </span>
 
           <span class="v">
-            ${esc(state.time)}
+            ${esc(
+              state.time
+            )}
           </span>
+
         </div>
 
         <div class="sum-row">
+
           <span class="k">
             Nome
           </span>
 
           <span class="v">
-            ${esc(state.nome)}
+            ${esc(
+              state.nome
+            )}
           </span>
+
         </div>
 
         <div class="sum-row sum-total">
+
           <span class="k">
             Total
           </span>
 
           <span class="v">
-            ${state.service.price}€
+            ${
+              state.service
+                .price
+            }€
           </span>
+
         </div>
 
       </div>
     `;
   }
 
-  /* ========================================================
-     SUCESSO
-     ======================================================== */
+  /* ============================================================
+     STEP 7 — CONFIRMADO
+     ============================================================ */
 
   function stepSuccess() {
     const bk =
@@ -1260,8 +1616,9 @@
       body.innerHTML = `
         <div class="b-auth-required">
           <p>
-            Não foi possível carregar
-            os dados da marcação.
+            Marcação criada, mas
+            não foi possível carregar
+            os detalhes.
           </p>
         </div>
       `;
@@ -1269,15 +1626,14 @@
       return;
     }
 
-    const b =
-      bk["Barbeiro"] || "—";
-
     const dateValue =
       bk["Data"];
 
     const dt =
       RG.parseISO(
-        String(dateValue)
+        String(
+          dateValue
+        )
       );
 
     body.innerHTML = `
@@ -1292,52 +1648,65 @@
         </h3>
 
         <p>
-          Obrigado! Enviámos-te a confirmação.
-          Vemo-nos na barbearia.
+          Obrigado! Vemo-nos na barbearia.
         </p>
 
         <div class="b-summary suc-card">
 
           <div class="sum-row">
+
             <span class="k">
               Serviço
             </span>
 
             <span class="v">
               ${esc(
-                bk["Serviço"] || ""
+                bk["Serviço"] ||
+                  ""
               )}
             </span>
+
           </div>
 
           <div class="sum-row">
+
             <span class="k">
               Barbeiro
             </span>
 
             <span class="v">
-              ${esc(b)}
+              ${esc(
+                bk["Barbeiro"] ||
+                  "Sem preferência"
+              )}
             </span>
+
           </div>
 
           <div class="sum-row">
+
             <span class="k">
               Data
             </span>
 
             <span class="v">
-              ${dt
-                .getDate()
-                .toString()
-                .padStart(2, "0")}/${(
+              ${String(
+                dt.getDate()
+              ).padStart(
+                2,
+                "0"
+              )}/${String(
                 dt.getMonth() + 1
-              )
-                .toString()
-                .padStart(2, "0")}/${dt.getFullYear()}
+              ).padStart(
+                2,
+                "0"
+              )}/${dt.getFullYear()}
             </span>
+
           </div>
 
           <div class="sum-row">
+
             <span class="k">
               Hora
             </span>
@@ -1345,10 +1714,15 @@
             <span class="v">
               ${esc(
                 String(
-                  bk["Hora"] || ""
-                ).slice(0, 5)
+                  bk["Hora"] ||
+                    ""
+                ).slice(
+                  0,
+                  5
+                )
               )}
             </span>
+
           </div>
 
         </div>
@@ -1363,7 +1737,10 @@
             class="btn btn-gold"
             id="goBookings"
           >
-            ${window.RGICONS.calendar}
+            ${
+              window.RGICONS
+                .calendar
+            }
             Ver minhas marcações
           </button>
 
@@ -1380,9 +1757,18 @@
       </div>
     `;
 
-    body
-      .querySelector("#goBookings")
-      .addEventListener(
+    const goBookings =
+      body.querySelector(
+        "#goBookings"
+      );
+
+    const closeBooking =
+      body.querySelector(
+        "#closeBooking"
+      );
+
+    if (goBookings) {
+      goBookings.addEventListener(
         "click",
         () => {
           close();
@@ -1391,47 +1777,59 @@
             "profile.html#minhas-marcacoes";
         }
       );
+    }
 
-    body
-      .querySelector("#closeBooking")
-      .addEventListener(
+    if (closeBooking) {
+      closeBooking.addEventListener(
         "click",
         close
       );
+    }
   }
 
-  /* ========================================================
-     CONFIRMAR MARCAÇÃO
-     ======================================================== */
+  /* ============================================================
+     CONFIRMAR
+     ============================================================ */
 
   async function confirmBooking() {
-    if (state.submitting) return;
+    if (
+      state.submitting
+    ) {
+      return;
+    }
 
-    state.submitting = true;
+    state.submitting =
+      true;
 
-    nextBtn.disabled = true;
+    if (nextBtn) {
+      nextBtn.disabled =
+        true;
 
-    nextBtn.innerHTML = `
-      <span
-        class="spinner"
-        style="
-          width:18px;
-          height:18px;
-          border-width:2px
-        "
-      ></span>
+      nextBtn.innerHTML = `
+        <span
+          class="spinner"
+          style="
+            width:18px;
+            height:18px;
+            border-width:2px
+          "
+        ></span>
 
-      <span>
-        A confirmar…
-      </span>
-    `;
+        <span>
+          A confirmar…
+        </span>
+      `;
+    }
 
     const barberName =
       state.barber
         ? state.barber.name
         : "Sem preferência";
 
-    /* Verificação final */
+    /* ----------------------------------------------------------
+       VERIFICAR HORÁRIO
+       ---------------------------------------------------------- */
+
     try {
       const taken =
         await Store.getTakenSlots(
@@ -1441,24 +1839,35 @@
       const wantedTime =
         String(
           state.time || ""
-        ).slice(0, 5);
+        ).slice(
+          0,
+          5
+        );
 
       const clash =
         state.barber
           ? taken.some(
-              (x) =>
+              x =>
                 String(
-                  x.booking_time || ""
-                ).slice(0, 5) ===
+                  x.booking_time ||
+                    ""
+                ).slice(
+                  0,
+                  5
+                ) ===
                   wantedTime &&
                 x.barber_name ===
                   barberName
             )
           : taken.some(
-              (x) =>
+              x =>
                 String(
-                  x.booking_time || ""
-                ).slice(0, 5) ===
+                  x.booking_time ||
+                    ""
+                ).slice(
+                  0,
+                  5
+                ) ===
                 wantedTime
             );
 
@@ -1468,54 +1877,78 @@
           "error"
         );
 
-        state.time = null;
-        state.submitting = false;
-        state.step = 3;
+        state.time =
+          null;
 
-        return render();
+        state.submitting =
+          false;
+
+        state.step =
+          3;
+
+        render();
+
+        return;
       }
-    } catch (err) {
+    } catch (error) {
       console.warn(
-        "Verificação de disponibilidade falhou:",
-        err
+        "Verificação de horário falhou:",
+        error
       );
     }
+
+    /* ----------------------------------------------------------
+       CRIAR
+       ---------------------------------------------------------- */
 
     try {
       const booking =
         await Store.create({
-          nome: state.nome.trim(),
-          email: state.email,
+          nome:
+            state.nome.trim(),
+
+          email:
+            state.email,
+
           service_name:
             state.service.name,
+
           barber_name:
             barberName,
+
           booking_date:
             state.date,
+
           booking_time:
-            state.time,
+            state.time
         });
 
       /* Atualizar perfil */
       try {
-        await window.Auth.updateProfile({
-          nome: state.nome.trim(),
-          telefone:
-            state.telefone.trim(),
-        });
-      } catch (err) {
+        await window.Auth.updateProfile(
+          {
+            nome:
+              state.nome.trim(),
+
+            telefone:
+              state.telefone.trim()
+          }
+        );
+      } catch (error) {
         console.warn(
-          "Update profile falhou:",
-          err?.message
+          "Não foi possível atualizar perfil:",
+          error
         );
       }
 
       state.lastBooking =
         booking;
 
-      state.submitting = false;
+      state.submitting =
+        false;
 
-      state.step = 6;
+      state.step =
+        6;
 
       window.showToast(
         "Marcação confirmada com sucesso!",
@@ -1523,15 +1956,21 @@
       );
 
       render();
-    } catch (err) {
+
+    } catch (error) {
+
       console.error(
-        "ERRO AO CRIAR MARCAÇÃO:",
-        err
+        "ERRO AO CRIAR BOOKING:",
+        error
       );
 
-      state.submitting = false;
+      state.submitting =
+        false;
 
-      nextBtn.disabled = false;
+      if (nextBtn) {
+        nextBtn.disabled =
+          false;
+      }
 
       window.showToast(
         "Não foi possível confirmar a marcação. Tenta novamente.",
@@ -1542,37 +1981,45 @@
     }
   }
 
-  /* ========================================================
+  /* ============================================================
      ESC
-     ======================================================== */
+     ============================================================ */
 
-  function esc(s) {
-    return String(s ?? "").replace(
+  function esc(value) {
+    return String(
+      value ?? ""
+    ).replace(
       /[&<>"']/g,
-      (c) =>
+      c =>
         ({
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&#039;",
+          "&":
+            "&amp;",
+          "<":
+            "&lt;",
+          ">":
+            "&gt;",
+          '"':
+            "&quot;",
+          "'":
+            "&#039;"
         })[c]
     );
   }
 
-  /* ========================================================
-     EXPOSIÇÃO
-     ======================================================== */
+  /* ============================================================
+     EXPOR
+     ============================================================ */
 
   window.BookingFlow = {
     open,
     close,
-    init,
+    init
   };
 
   document.addEventListener(
     "DOMContentLoaded",
     init
   );
+
 })();
 ```
