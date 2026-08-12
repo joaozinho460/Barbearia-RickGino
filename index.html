@@ -387,28 +387,61 @@
     </div>
   </div>
 
-  <!-- ============ SCRIPTS ============ -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/config.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/main.js"></script>
-  <script src="js/auth.js"></script>
-  <script src="js/bookings.js"></script>
-  <script>
-    // ícones estáticos no HTML
-    var ic = window.RGICONS;
-    var el = document.getElementById('brandIcon'); if (el) el.innerHTML = ic.scissors;
-    el = document.getElementById('googleLogo'); if (el) el.innerHTML = ic.google;
-    el = document.getElementById('googleStars'); if (el) el.innerHTML = ic.star.repeat(5);
-    el = document.getElementById('pinIcon'); if (el) el.innerHTML = ic.pin;
-    el = document.getElementById('phoneIcon'); if (el) el.innerHTML = ic.phone;
-    el = document.getElementById('navIcon'); if (el) el.innerHTML = ic.pin;
-    el = document.getElementById('clockIcon'); if (el) el.innerHTML = ic.clock;
-    el = document.getElementById('phoneIcon2'); if (el) el.innerHTML = ic.phone;
-    el = document.getElementById('waIcon'); if (el) el.innerHTML = ic.phone;
-    el = document.getElementById('igIcon'); if (el) el.innerHTML = ic.instagram;
-    document.getElementById('year').textContent = new Date().getFullYear();
-    window.Auth.init();
-  </script>
+
+
+<!-- Supabase -->
+<!-- ============ SCRIPTS ============ -->
+
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<!-- Configuração e dados -->
+<script src="js/config.js"></script>
+<script src="js/data.js"></script>
+
+<!-- Funcionalidades -->
+<script src="js/auth.js"></script>
+<script src="js/bookings.js"></script>
+<script src="js/main.js"></script>
+
+<script>
+  // Ícones estáticos no HTML
+  var ic = window.RGICONS;
+
+  var el = document.getElementById('brandIcon');
+  if (el) el.innerHTML = ic.scissors;
+
+  el = document.getElementById('googleLogo');
+  if (el) el.innerHTML = ic.google;
+
+  el = document.getElementById('googleStars');
+  if (el) el.innerHTML = ic.star.repeat(5);
+
+  el = document.getElementById('pinIcon');
+  if (el) el.innerHTML = ic.pin;
+
+  el = document.getElementById('phoneIcon');
+  if (el) el.innerHTML = ic.phone;
+
+  el = document.getElementById('navIcon');
+  if (el) el.innerHTML = ic.pin;
+
+  el = document.getElementById('clockIcon');
+  if (el) el.innerHTML = ic.clock;
+
+  el = document.getElementById('phoneIcon2');
+  if (el) el.innerHTML = ic.phone;
+
+  el = document.getElementById('waIcon');
+  if (el) el.innerHTML = ic.phone;
+
+  el = document.getElementById('igIcon');
+  if (el) el.innerHTML = ic.instagram;
+
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  window.Auth.init();
+</script>
+
 </body>
 </html>
