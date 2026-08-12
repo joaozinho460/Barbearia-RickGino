@@ -18,12 +18,17 @@
       const auth = window.Auth;
 
       if (auth.isDemo()) {
-        const all = JSON.parse(localStorage.getItem("rg_bookings") || "[]");
+        const all = JSON.parse(
+          localStorage.getItem("rg_bookings") || "[]"
+        );
+
         const prof = auth.getUser();
 
         if (!prof) return [];
 
-        return all.filter((b) => b.user_id === prof.id);
+        return all.filter(
+          (b) => b.user_id === prof.id
+        );
       }
 
       const user = auth.getUser();
@@ -34,7 +39,9 @@
         .getClient()
         .from("bookings")
         .select("*")
-        .order("booking_date", { ascending: false });
+        .order("booking_date", {
+          ascending: false,
+        });
 
       if (error) throw error;
 
@@ -43,6 +50,7 @@
 
     async upcoming() {
       const all = await Store.listAll();
+
       const today = RG.toISODate(new Date());
 
       return all
@@ -52,8 +60,12 @@
             String(b.booking_date) >= today
         )
         .sort((a, b) =>
-          (a.booking_date + a.booking_time).localeCompare(
-            b.booking_date + b.booking_time
+          (
+            a.booking_date +
+            a.booking_time
+          ).localeCompare(
+            b.booking_date +
+              b.booking_time
           )
         );
     },
@@ -62,7 +74,10 @@
       const all = await Store.listAll();
 
       return (
-        all.find((b) => String(b.id) === String(id)) || null
+        all.find(
+          (b) =>
+            String(b.id) === String(id)
+        ) || null
       );
     },
 
@@ -72,25 +87,35 @@
 
       if (auth.isDemo()) {
         const all = JSON.parse(
-          localStorage.getItem("rg_bookings") || "[]"
+          localStorage.getItem(
+            "rg_bookings"
+          ) || "[]"
         );
 
-        const now = new Date().toISOString();
+        const now =
+          new Date().toISOString();
 
         const rec = {
           id:
             "bk_" +
-            Math.random().toString(36).slice(2, 12),
+            Math.random()
+              .toString(36)
+              .slice(2, 12),
 
-          user_id: auth.getUser().id,
+          user_id:
+            auth.getUser().id,
 
-          service_name: payload.service_name,
+          service_name:
+            payload.service_name,
 
-          barber_name: payload.barber_name,
+          barber_name:
+            payload.barber_name,
 
-          booking_date: payload.booking_date,
+          booking_date:
+            payload.booking_date,
 
-          booking_time: payload.booking_time,
+          booking_time:
+            payload.booking_time,
 
           status: "confirmed",
 
@@ -111,48 +136,67 @@
         return rec;
       }
 
-      const user = auth.getUser();
+      const user =
+        auth.getUser();
 
-      const { data, error } = await auth
-        .getClient()
-        .from("bookings")
-        .insert([
-          {
-            user_id: user.id,
-            service_name: payload.service_name,
-            barber_name: payload.barber_name,
-            booking_date: payload.booking_date,
-            booking_time: payload.booking_time,
-            status: "confirmed",
-            reference,
-          },
-        ])
-        .select()
-        .single();
+      const { data, error } =
+        await auth
+          .getClient()
+          .from("bookings")
+          .insert([
+            {
+              user_id: user.id,
+
+              service_name:
+                payload.service_name,
+
+              barber_name:
+                payload.barber_name,
+
+              booking_date:
+                payload.booking_date,
+
+              booking_time:
+                payload.booking_time,
+
+              status: "confirmed",
+
+              reference,
+            },
+          ])
+          .select()
+          .single();
 
       if (error) throw error;
 
       return data;
     },
 
-    /* Cancelar: nunca apaga a marcação */
     async cancel(id) {
       const auth = window.Auth;
 
       if (auth.isDemo()) {
         const all = JSON.parse(
-          localStorage.getItem("rg_bookings") || "[]"
+          localStorage.getItem(
+            "rg_bookings"
+          ) || "[]"
         );
 
-        const idx = all.findIndex(
-          (b) => String(b.id) === String(id)
-        );
+        const idx =
+          all.findIndex(
+            (b) =>
+              String(b.id) ===
+              String(id)
+          );
 
         if (idx === -1) {
-          throw new Error("Marcação não encontrada.");
+          throw new Error(
+            "Marcação não encontrada."
+          );
         }
 
-        all[idx].status = "cancelled";
+        all[idx].status =
+          "cancelled";
 
         all[idx].updated_at =
           new Date().toISOString();
@@ -165,49 +209,62 @@
         return all[idx];
       }
 
-      const { data, error } = await auth
-        .getClient()
-        .from("bookings")
-        .update({
-          status: "cancelled",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id)
-        .select()
-        .single();
+      const { data, error } =
+        await auth
+          .getClient()
+          .from("bookings")
+          .update({
+            status: "cancelled",
+            updated_at:
+              new Date().toISOString(),
+          })
+          .eq("id", id)
+          .select()
+          .single();
 
       if (error) throw error;
 
       return data;
     },
 
-    /* Horários ocupados */
     async getTakenSlots(dateISO) {
       const auth = window.Auth;
 
       if (auth.isDemo()) {
         const all = JSON.parse(
-          localStorage.getItem("rg_bookings") || "[]"
+          localStorage.getItem(
+            "rg_bookings"
+          ) || "[]"
         );
 
         return all
           .filter(
             (b) =>
-              b.status !== "cancelled" &&
-              String(b.booking_date) === dateISO
+              b.status !==
+                "cancelled" &&
+              String(
+                b.booking_date
+              ) === dateISO
           )
           .map((b) => ({
-            booking_time: b.booking_time,
-            barber_name: b.barber_name,
+            booking_time:
+              b.booking_time,
+
+            barber_name:
+              b.barber_name,
           }));
       }
 
       try {
-        const { data, error } = await auth
-          .getClient()
-          .rpc("get_taken_slots", {
-            p_date: dateISO,
-          });
+        const { data, error } =
+          await auth
+            .getClient()
+            .rpc(
+              "get_taken_slots",
+              {
+                p_date: dateISO,
+              }
+            );
 
         if (error) throw error;
 
@@ -232,7 +289,10 @@
     for (let i = 0; i < 6; i++) {
       r +=
         chars[
-          Math.floor(Math.random() * chars.length)
+          Math.floor(
+            Math.random() *
+              chars.length
+          )
         ];
     }
 
@@ -265,15 +325,21 @@
 
   const state = {
     step: 0,
+
     service: null,
+
     barber: null,
+
     noBarberPref: true,
 
     date: null,
+
     time: null,
 
     nome: "",
+
     telefone: "",
+
     email: "",
 
     taken: [],
@@ -298,30 +364,41 @@
     if (opts.serviceId) {
       state.service =
         D.services.find(
-          (s) => s.id === opts.serviceId
+          (s) =>
+            s.id ===
+            opts.serviceId
         ) || null;
     }
 
     if (opts.barberId) {
       state.barber =
         D.team.find(
-          (t) => t.id === opts.barberId
+          (t) =>
+            t.id ===
+            opts.barberId
         ) || null;
 
-      state.noBarberPref = !state.barber;
+      state.noBarberPref =
+        !state.barber;
     }
 
-    modal.classList.add("open");
+    modal.classList.add(
+      "open"
+    );
 
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow =
+      "hidden";
 
     render();
   }
 
   function close() {
-    modal.classList.remove("open");
+    modal.classList.remove(
+      "open"
+    );
 
-    document.body.style.overflow = "";
+    document.body.style.overflow =
+      "";
   }
 
   function resetState() {
@@ -346,24 +423,36 @@
 
   function init() {
     modal =
-      document.getElementById("bookingModal");
+      document.getElementById(
+        "bookingModal"
+      );
 
     if (!modal) return;
 
     body =
-      document.getElementById("bookingStep");
+      document.getElementById(
+        "bookingStep"
+      );
 
     dots =
-      document.getElementById("bookingDots");
+      document.getElementById(
+        "bookingDots"
+      );
 
     foot =
-      document.getElementById("bookingFoot");
+      document.getElementById(
+        "bookingFoot"
+      );
 
     backBtn =
-      document.getElementById("bookingBack");
+      document.getElementById(
+        "bookingBack"
+      );
 
     nextBtn =
-      document.getElementById("bookingNext");
+      document.getElementById(
+        "bookingNext"
+      );
 
     stepLabel =
       document.getElementById(
@@ -376,50 +465,75 @@
       );
 
     document
-      .getElementById("bookingClose")
-      ?.addEventListener("click", close);
+      .getElementById(
+        "bookingClose"
+      )
+      ?.addEventListener(
+        "click",
+        close
+      );
 
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) close();
-    });
-
-    document.addEventListener("keydown", (e) => {
-      if (
-        e.key === "Escape" &&
-        modal.classList.contains("open")
-      ) {
-        close();
-      }
-    });
-
-    backBtn.addEventListener("click", () => {
-      if (state.step === 6) return;
-
-      state.step--;
-
-      if (state.step === 4) {
-        refreshStepData();
-      }
-
-      render();
-    });
-
-    nextBtn.addEventListener(
+    modal.addEventListener(
       "click",
-      onNext
+      (e) => {
+        if (
+          e.target === modal
+        ) {
+          close();
+        }
+      }
     );
 
-    window.Auth.setOnAuthChange(() => {
-      if (
-        modal.classList.contains("open")
-      ) {
+    document.addEventListener(
+      "keydown",
+      (e) => {
+        if (
+          e.key === "Escape" &&
+          modal.classList.contains(
+            "open"
+          )
+        ) {
+          close();
+        }
+      }
+    );
+
+    backBtn.addEventListener(
+      "click",
+      () => {
+        if (state.step === 6)
+          return;
+
+        state.step--;
+
         if (state.step === 4) {
           refreshStepData();
         }
 
         render();
       }
-    });
+    );
+
+    nextBtn.addEventListener(
+      "click",
+      onNext
+    );
+
+    window.Auth.setOnAuthChange(
+      () => {
+        if (
+          modal.classList.contains(
+            "open"
+          )
+        ) {
+          if (state.step === 4) {
+            refreshStepData();
+          }
+
+          render();
+        }
+      }
+    );
   }
 
   function render() {
@@ -428,16 +542,22 @@
     stepLabel.textContent =
       `Passo ${s + 1} de ${Steps.length}`;
 
-    stepTitle.textContent = Steps[s];
+    stepTitle.textContent =
+      Steps[s];
 
-    dots.innerHTML = Steps.map(
-      (_, i) =>
-        `<span class="step-dot ${
-          i === s ? "active" : ""
-        } ${
-          i < s ? "done" : ""
-        }"></span>`
-    ).join("");
+    dots.innerHTML =
+      Steps.map(
+        (_, i) =>
+          `<span class="step-dot ${
+            i === s
+              ? "active"
+              : ""
+          } ${
+            i < s
+              ? "done"
+              : ""
+          }"></span>`
+      ).join("");
 
     body.innerHTML = "";
 
@@ -454,18 +574,26 @@
     renderers[s]();
 
     foot.style.display =
-      s === 6 ? "none" : "flex";
+      s === 6
+        ? "none"
+        : "flex";
 
     backBtn.style.visibility =
-      s === 0 ? "hidden" : "visible";
+      s === 0
+        ? "hidden"
+        : "visible";
 
     if (s === 5) {
       nextBtn.innerHTML = `
         ${window.RGICONS.check}
-        <span>Confirmar marcação</span>
+        <span>
+          Confirmar marcação
+        </span>
       `;
 
-      nextBtn.classList.add("btn-gold");
+      nextBtn.classList.add(
+        "btn-gold"
+      );
 
       nextBtn.disabled =
         state.submitting;
@@ -475,7 +603,9 @@
         ${window.RGICONS.arrowRight}
       `;
 
-      nextBtn.classList.add("btn-gold");
+      nextBtn.classList.add(
+        "btn-gold"
+      );
 
       nextBtn.disabled = false;
     }
@@ -542,7 +672,9 @@
         );
       }
 
-      if (!state.telefone.trim()) {
+      if (
+        !state.telefone.trim()
+      ) {
         return window.showToast(
           "Indica o teu telefone.",
           "error"
@@ -591,18 +723,23 @@
   function stepService() {
     body.innerHTML = `
       <div class="service-options">
+
         ${D.services
           .map(
             (s) => `
           <button
             type="button"
             class="service-opt ${
-              state.service?.id === s.id
+              state.service?.id ===
+              s.id
                 ? "selected"
                 : ""
             }"
-            data-svc="${esc(s.id)}"
+            data-svc="${esc(
+              s.id
+            )}"
           >
+
             <span class="so-name">
               ${esc(s.name)}
             </span>
@@ -616,15 +753,19 @@
                 ${s.price}€
               </span>
             </span>
+
           </button>
         `
           )
           .join("")}
+
       </div>
     `;
 
     body
-      .querySelectorAll(".service-opt")
+      .querySelectorAll(
+        ".service-opt"
+      )
       .forEach((btn) =>
         btn.addEventListener(
           "click",
@@ -632,7 +773,8 @@
             state.service =
               D.services.find(
                 (s) =>
-                  s.id === btn.dataset.svc
+                  s.id ===
+                  btn.dataset.svc
               );
 
             body
@@ -670,6 +812,7 @@
           }"
           data-barber="any"
         >
+
           <span class="bo-avatar">
             ${window.RGICONS.scissors}
           </span>
@@ -681,6 +824,7 @@
           <span class="badge-any">
             Primeiro disponível
           </span>
+
         </button>
 
         ${D.team
@@ -689,12 +833,16 @@
           <button
             type="button"
             class="barber-opt ${
-              state.barber?.id === t.id
+              state.barber?.id ===
+              t.id
                 ? "selected"
                 : ""
             }"
-            data-barber="${esc(t.id)}"
+            data-barber="${esc(
+              t.id
+            )}"
           >
+
             <span class="bo-avatar">
               ${
                 t.photo
@@ -712,8 +860,11 @@
             </span>
 
             <span class="bo-spec">
-              ${esc(t.specialty)}
+              ${esc(
+                t.specialty
+              )}
             </span>
+
           </button>
         `
           )
@@ -723,7 +874,9 @@
     `;
 
     body
-      .querySelectorAll(".barber-opt")
+      .querySelectorAll(
+        ".barber-opt"
+      )
       .forEach((btn) =>
         btn.addEventListener(
           "click",
@@ -732,18 +885,22 @@
               btn.dataset.barber ===
               "any"
             ) {
-              state.barber = null;
+              state.barber =
+                null;
 
-              state.noBarberPref = true;
+              state.noBarberPref =
+                true;
             } else {
               state.barber =
                 D.team.find(
                   (t) =>
                     t.id ===
-                    btn.dataset.barber
+                    btn.dataset
+                      .barber
                 );
 
-              state.noBarberPref = false;
+              state.noBarberPref =
+                false;
             }
 
             body
@@ -764,99 +921,39 @@
   /* ========================================================
      PASSO 3 — DATA
      
-     CORREÇÃO:
-     - mostra o mês completo;
-     - começa sempre no dia 1;
-     - dias anteriores ficam bloqueados;
-     - dias fechados ficam bloqueados;
-     - o mês atual é calculado automaticamente;
-     - ao mudar de mês, o calendário acompanha
-       automaticamente a data atual.
+     IMPORTANTE:
+     Esta é a única parte alterada.
+     
+     - Mostra TODOS os dias do mês atual.
+     - Começa sempre no dia 1.
+     - Dias anteriores ficam bloqueados.
+     - Domingo/fechados continuam bloqueados.
+     - O mês/ano são automáticos.
+     - Não depende de RG.parseISO().
      ======================================================== */
 
   function stepDate() {
     const now = new Date();
 
-    const currentYear =
+    const year =
       now.getFullYear();
 
-    const currentMonth =
+    const month =
       now.getMonth();
 
-    /*
-      Mostra o mês atual completo.
-
-      Exemplo:
-      se hoje for dia 12 de agosto,
-      aparecem:
-      01 Ago
-      02 Ago
-      03 Ago
-      ...
-      31 Ago
-
-      Os dias 01–11 ficam bloqueados.
-    */
-
-    const firstDay = new Date(
-      currentYear,
-      currentMonth,
-      1
-    );
-
-    const lastDay = new Date(
-      currentYear,
-      currentMonth + 1,
-      0
-    );
-
-    const days = [];
-
-    for (
-      let day = 1;
-      day <= lastDay.getDate();
-      day++
-    ) {
-      const d = new Date(
-        currentYear,
-        currentMonth,
-        day
+    const todayStart =
+      new Date(
+        year,
+        month,
+        now.getDate()
       );
 
-      const dateISO =
-        RG.toISODate(d);
-
-      const dow = d.getDay();
-
-      /*
-        Dia já passado
-      */
-      const isPast =
-        d <
-        new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate()
-        );
-
-      /*
-        Dia encerrado pela configuração
-      */
-      const closed =
-        (
-          D.bookingClosedWeekdays ||
-          []
-        ).includes(dow);
-
-      days.push({
-        date: dateISO,
-        dow,
-        closed,
-        isPast,
-        disabled:
-          closed || isPast,
-      });
-    }
+    const daysInMonth =
+      new Date(
+        year,
+        month + 1,
+        0
+      ).getDate();
 
     const dowNames = [
       "Dom",
@@ -868,7 +965,7 @@
       "Sáb",
     ];
 
-    const monNames = [
+    const monthNames = [
       "Janeiro",
       "Fevereiro",
       "Março",
@@ -883,98 +980,176 @@
       "Dezembro",
     ];
 
+    let html = "";
+
     /*
-      Cabeçalho do mês.
-      É calculado automaticamente pelo JavaScript,
-      portanto não precisas mudar manualmente todos
-      os meses.
+      Cabeçalho do mês atual
     */
 
-    body.innerHTML = `
-      <div class="booking-month-header">
-        <h3>
-          ${monNames[currentMonth]}
-          ${currentYear}
+    html += `
+      <div
+        class="booking-month-header"
+        style="
+          text-align:center;
+          margin-bottom:18px;
+        "
+      >
+        <h3
+          style="
+            margin:0;
+            font-size:1.15rem;
+            font-weight:700;
+          "
+        >
+          ${monthNames[month]}
+          ${year}
         </h3>
       </div>
+    `;
 
+    /*
+      Calendário completo
+    */
+
+    html += `
       <div class="date-options">
-        ${days
-          .map((d) => {
-            const dt =
-              RG.parseISO(d.date);
+    `;
 
-            const sel =
-              state.date === d.date;
+    for (
+      let day = 1;
+      day <= daysInMonth;
+      day++
+    ) {
+      const date =
+        new Date(
+          year,
+          month,
+          day
+        );
 
-            return `
-              <button
-                type="button"
-                class="date-opt ${
-                  sel
-                    ? "selected"
-                    : ""
-                } ${
-                  d.disabled
-                    ? "disabled"
-                    : ""
-                } ${
-                  d.isPast
-                    ? "past"
-                    : ""
-                }"
-                data-date="${d.date}"
-                ${
-                  d.disabled
-                    ? "disabled"
-                    : ""
-                }
-              >
+      const dow =
+        date.getDay();
 
-                <span class="dow">
-                  ${dowNames[d.dow]}
-                </span>
+      /*
+        YYYY-MM-DD manualmente.
+        Não depende de nenhuma função
+        externa do projeto.
+      */
 
-                <span class="day">
-                  ${dt.getDate()}
-                </span>
+      const dateISO =
+        year +
+        "-" +
+        String(
+          month + 1
+        ).padStart(2, "0") +
+        "-" +
+        String(day).padStart(
+          2,
+          "0"
+        );
 
-                <span class="mon">
-                  ${monNames[
-                    dt.getMonth()
-                  ].slice(0, 3)}
-                </span>
+      /*
+        Dias que já passaram
+      */
 
-              </button>
-            `;
-          })
-          .join("")}
+      const isPast =
+        date < todayStart;
+
+      /*
+        Dias fechados configurados
+        no SITE_DATA.
+      */
+
+      const closed =
+        Array.isArray(
+          D.bookingClosedWeekdays
+        ) &&
+        D.bookingClosedWeekdays.includes(
+          dow
+        );
+
+      const disabled =
+        isPast || closed;
+
+      const selected =
+        state.date === dateISO;
+
+      html += `
+        <button
+          type="button"
+          class="date-opt ${
+            selected
+              ? "selected"
+              : ""
+          } ${
+            disabled
+              ? "disabled"
+              : ""
+          } ${
+            isPast
+              ? "past"
+              : ""
+          }"
+          data-date="${dateISO}"
+          ${
+            disabled
+              ? "disabled"
+              : ""
+          }
+        >
+
+          <span class="dow">
+            ${dowNames[dow]}
+          </span>
+
+          <span class="day">
+            ${day}
+          </span>
+
+          <span class="mon">
+            ${monthNames[
+              month
+            ].substring(0, 3)}
+          </span>
+
+        </button>
+      `;
+    }
+
+    html += `
       </div>
 
       <p
         style="
           color:var(--muted);
           font-size:.8rem;
-          margin-top:14px
+          margin-top:14px;
         "
       >
         ${
           window.RGICONS.info
         }
-        Os dias que já passaram e os dias
-        encerrados aparecem bloqueados.
+        Os dias que já passaram
+        e os dias encerrados
+        ficam bloqueados.
       </p>
     `;
 
     /*
-      Só permite selecionar datas válidas.
+      Coloca tudo no ecrã.
+    */
+
+    body.innerHTML = html;
+
+    /*
+      Seleção da data.
     */
 
     body
       .querySelectorAll(
         ".date-opt:not(:disabled)"
       )
-      .forEach((btn) =>
+      .forEach((btn) => {
         btn.addEventListener(
           "click",
           () => {
@@ -994,8 +1169,8 @@
                 )
               );
           }
-        )
-      );
+        );
+      });
   }
 
   /* ========================================================
@@ -1041,13 +1216,15 @@
       state.barber
         ? taken.some(
             (x) =>
-              x.booking_time === t &&
+              x.booking_time ===
+                t &&
               x.barber_name ===
                 state.barber.name
           )
         : taken.some(
             (x) =>
-              x.booking_time === t
+              x.booking_time ===
+              t
           );
 
     body.innerHTML = `
@@ -1066,6 +1243,7 @@
       </div>
 
       <div class="time-options">
+
         ${slots
           .map(
             (t) => `
@@ -1092,6 +1270,7 @@
         `
           )
           .join("")}
+
       </div>
     `;
 
@@ -1185,7 +1364,9 @@
           <input
             id="bkNome"
             type="text"
-            value="${esc(state.nome)}"
+            value="${esc(
+              state.nome
+            )}"
             placeholder="O teu nome"
           >
         </div>
@@ -1198,7 +1379,9 @@
           <input
             id="bkTel"
             type="tel"
-            value="${esc(state.telefone)}"
+            value="${esc(
+              state.telefone
+            )}"
             placeholder="+351 ..."
           >
         </div>
@@ -1212,7 +1395,9 @@
           <input
             id="bkEmail"
             type="email"
-            value="${esc(state.email)}"
+            value="${esc(
+              state.email
+            )}"
             disabled
           >
 
@@ -1226,10 +1411,14 @@
     `;
 
     const iNome =
-      body.querySelector("#bkNome");
+      body.querySelector(
+        "#bkNome"
+      );
 
     const iTel =
-      body.querySelector("#bkTel");
+      body.querySelector(
+        "#bkTel"
+      );
 
     iNome.addEventListener(
       "input",
@@ -1268,10 +1457,15 @@
           </span>
 
           <span class="v">
-            ${esc(state.service.name)}
+            ${esc(
+              state.service.name
+            )}
 
             <span class="sub">
-              ${state.service.duration} min
+              ${
+                state.service
+                  .duration
+              } min
             </span>
           </span>
         </div>
@@ -1299,7 +1493,10 @@
               dt.getMonth() + 1
             )
               .toString()
-              .padStart(2, "0")}/${dt.getFullYear()}
+              .padStart(
+                2,
+                "0"
+              )}/${dt.getFullYear()}
           </span>
         </div>
 
@@ -1379,7 +1576,9 @@
             </span>
 
             <span class="v">
-              ${esc(bk.service_name)}
+              ${esc(
+                bk.service_name
+              )}
             </span>
           </div>
 
@@ -1402,11 +1601,17 @@
               ${dt
                 .getDate()
                 .toString()
-                .padStart(2, "0")}/${(
+                .padStart(
+                  2,
+                  "0"
+                )}/${(
                 dt.getMonth() + 1
               )
                 .toString()
-                .padStart(2, "0")}/${dt.getFullYear()}
+                .padStart(
+                  2,
+                  "0"
+                )}/${dt.getFullYear()}
             </span>
           </div>
 
@@ -1426,7 +1631,9 @@
 
         <span class="suc-ref">
           Referência ·
-          ${esc(bk.reference)}
+          ${esc(
+            bk.reference
+          )}
         </span>
 
         <div
@@ -1457,7 +1664,9 @@
     `;
 
     body
-      .querySelector("#goBookings")
+      .querySelector(
+        "#goBookings"
+      )
       .addEventListener(
         "click",
         () => {
@@ -1469,7 +1678,9 @@
       );
 
     body
-      .querySelector("#closeBooking")
+      .querySelector(
+        "#closeBooking"
+      )
       .addEventListener(
         "click",
         close
@@ -1477,7 +1688,7 @@
   }
 
   /* ========================================================
-     CONFIRMAR MARCAÇÃO
+     CONFIRMAÇÃO DA MARCAÇÃO
      ======================================================== */
 
   async function confirmBooking() {
@@ -1543,7 +1754,9 @@
 
         return render();
       }
-    } catch (err) {}
+    } catch (err) {
+      /* fallback */
+    }
 
     try {
       const booking =
@@ -1616,7 +1829,9 @@
      ======================================================== */
 
   function esc(s) {
-    return String(s ?? "").replace(
+    return String(
+      s ?? ""
+    ).replace(
       /[&<>"']/g,
       (c) =>
         ({
