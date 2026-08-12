@@ -1,15 +1,6 @@
-/*
-============================================================
-Barbearia RickGino — Configuração do Supabase
-============================================================
-*/
-
 window.SUPABASE_CONFIG = {
-  SUPABASE_URL: "https://yfbtcynkjewuggqxabqv.supabase.co",
-
-  SUPABASE_PUBLISHABLE_KEY:
-    "sb_publishable_jBZxtMgKPbl601_8UmFIBw_lthLAMNn",
+  SUPABASE_URL: "https://fitnklzctbhuhyivrilo.supabase.co",
+  SUPABASE_PUBLISHABLE_KEY: "sb_publishable_s8ih7e7qX_br8HHSXQ9QaA_FerUB2Ni",
 };
 
-// Modo demonstração
 window.FORCE_DEMO_MODE = false;
