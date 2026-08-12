@@ -117,7 +117,14 @@
           "E-mail": payload.email || "",
           "Serviço": payload.service_name || "",
           "Barbeiro": payload.barber_name || "",
+
+          /*
+           * IMPORTANTE:
+           * A data é guardada exatamente como veio.
+           * Não usamos new Date() aqui.
+           */
           "Data": payload.booking_date || "",
+
           "Hora": payload.booking_time || "",
           "Status": "confirmada",
 
@@ -141,7 +148,12 @@
         "E-mail": payload.email || "",
         "Serviço": payload.service_name || "",
         "Barbeiro": payload.barber_name || "",
+
+        /*
+         * A data continua exatamente igual.
+         */
         "Data": payload.booking_date || null,
+
         "Hora": payload.booking_time || null,
         "Status": "confirmada",
         "used_id": user.id
@@ -324,7 +336,11 @@
     barber: null,
     noBarberPref: true,
 
+    /*
+     * A DATA FICA COMO STRING YYYY-MM-DD.
+     */
     date: null,
+
     time: null,
 
     nome: "",
@@ -984,7 +1000,10 @@
 
   /* ============================================================
      STEP 3 — DATA
-     NÃO ALTERADO
+     
+     NÃO ALTERADO.
+     A data continua a ser criada por RG.toISODate()
+     e armazenada como YYYY-MM-DD.
      ============================================================ */
 
   function stepDate() {
@@ -1053,6 +1072,11 @@
 
         ${days
           .map(d => {
+            /*
+             * NÃO MEXER NA DATA GUARDADA.
+             * RG.parseISO é usado somente para mostrar
+             * o número do dia/mês no botão.
+             */
             const dt =
               RG.parseISO(
                 d.date
@@ -1129,6 +1153,13 @@
               return;
             }
 
+            /*
+             * A DATA É GUARDADA EXATAMENTE
+             * COMO ESTÁ NO BOTÃO.
+             *
+             * Exemplo:
+             * 2026-08-13
+             */
             state.date =
               btn.dataset.date;
 
@@ -1450,258 +1481,219 @@
 
   /* ============================================================
      STEP 6 — RESUMO
-     CORRIGIDO
      
-     IMPORTANTE:
-     - Não altera state.date
-     - Não usa new Date() para formatar a data
-     - Não usa RG.parseISO() neste passo
-     - Mantém o botão "Confirmar marcação"
+     CORREÇÃO PRINCIPAL DA DATA
      ============================================================ */
 
   function stepSummary() {
-    try {
-
-      if (!state.service) {
-        body.innerHTML = `
-          <div class="b-auth-required">
-            <p>
-              Falta selecionar o serviço.
-              Volta atrás e seleciona um serviço.
-            </p>
-          </div>
-        `;
-
-        return;
-      }
-
-      if (!state.date) {
-        body.innerHTML = `
-          <div class="b-auth-required">
-            <p>
-              Falta selecionar a data.
-              Volta atrás e seleciona um dia.
-            </p>
-          </div>
-        `;
-
-        return;
-      }
-
-      if (!state.time) {
-        body.innerHTML = `
-          <div class="b-auth-required">
-            <p>
-              Falta selecionar o horário.
-              Volta atrás e seleciona um horário.
-            </p>
-          </div>
-        `;
-
-        return;
-      }
-
-      /*
-        A DATA NÃO É ALTERADA.
-
-        Exemplo:
-        state.date = "2026-08-13"
-
-        Resultado:
-        13/08/2026
-      */
-
-      const rawDate =
-        String(
-          state.date || ""
-        ).trim();
-
-      let formattedDate =
-        rawDate;
-
-      const dateParts =
-        rawDate.split("-");
-
-      if (
-        dateParts.length === 3 &&
-        dateParts[0] &&
-        dateParts[1] &&
-        dateParts[2]
-      ) {
-        const year =
-          dateParts[0];
-
-        const month =
-          dateParts[1];
-
-        const day =
-          dateParts[2];
-
-        formattedDate =
-          `${day}/${month}/${year}`;
-      }
-
-      const serviceName =
-        String(
-          state.service?.name || ""
-        );
-
-      const serviceDuration =
-        String(
-          state.service?.duration || ""
-        );
-
-      const servicePrice =
-        state.service?.price ?? 0;
-
-      const barberName =
-        state.barber &&
-        state.barber.name
-          ? String(
-              state.barber.name
-            )
-          : "Sem preferência";
-
-      const formattedTime =
-        String(
-          state.time || ""
-        ).slice(
-          0,
-          5
-        );
-
-      const customerName =
-        String(
-          state.nome || ""
-        );
-
-      body.innerHTML = `
-        <div class="b-summary">
-
-          <div class="sum-row">
-
-            <span class="k">
-              Serviço
-            </span>
-
-            <span class="v">
-              ${esc(
-                serviceName
-              )}
-
-              <span class="sub">
-                ${esc(
-                  serviceDuration
-                )} min
-              </span>
-            </span>
-
-          </div>
-
-          <div class="sum-row">
-
-            <span class="k">
-              Barbeiro
-            </span>
-
-            <span class="v">
-              ${esc(
-                barberName
-              )}
-            </span>
-
-          </div>
-
-          <div class="sum-row">
-
-            <span class="k">
-              Data
-            </span>
-
-            <span class="v">
-              ${esc(
-                formattedDate
-              )}
-            </span>
-
-          </div>
-
-          <div class="sum-row">
-
-            <span class="k">
-              Hora
-            </span>
-
-            <span class="v">
-              ${esc(
-                formattedTime
-              )}
-            </span>
-
-          </div>
-
-          <div class="sum-row">
-
-            <span class="k">
-              Nome
-            </span>
-
-            <span class="v">
-              ${esc(
-                customerName
-              )}
-            </span>
-
-          </div>
-
-          <div class="sum-row sum-total">
-
-            <span class="k">
-              Total
-            </span>
-
-            <span class="v">
-              ${esc(
-                String(
-                  servicePrice
-                )
-              )}€
-            </span>
-
-          </div>
-
-        </div>
-      `;
-
-    } catch (error) {
-
-      console.error(
-        "ERRO NO RESUMO DA MARCAÇÃO:",
-        error
-      );
-
+    /*
+     * Verificação segura.
+     */
+    if (
+      !state.service ||
+      !state.date ||
+      !state.time
+    ) {
       body.innerHTML = `
         <div class="b-auth-required">
 
           <p>
-            Não foi possível carregar o resumo.
-          </p>
-
-          <p style="
-            font-size:.8rem;
-            color:var(--muted);
-            margin-top:8px
-          ">
-            Volta atrás e confirma os dados da marcação.
+            Faltam dados da marcação.
+            Volta atrás e seleciona
+            o serviço, data e horário.
           </p>
 
         </div>
       `;
+
+      return;
     }
+
+    /*
+     * IMPORTANTE:
+     *
+     * NÃO usamos:
+     *
+     * new Date(state.date)
+     *
+     * nem:
+     *
+     * RG.parseISO(state.date)
+     *
+     * aqui.
+     *
+     * A data vem como:
+     *
+     * YYYY-MM-DD
+     *
+     * e é convertida diretamente para:
+     *
+     * DD/MM/YYYY
+     *
+     * Isso impede problemas de timezone.
+     */
+
+    const rawDate =
+      String(
+        state.date || ""
+      ).trim();
+
+    let formattedDate =
+      rawDate;
+
+    const match =
+      rawDate.match(
+        /^(\d{4})-(\d{2})-(\d{2})$/
+      );
+
+    if (match) {
+      const year =
+        match[1];
+
+      const month =
+        match[2];
+
+      const day =
+        match[3];
+
+      formattedDate =
+        `${day}/${month}/${year}`;
+    }
+
+    const b =
+      state.barber || {
+        name:
+          "Sem preferência"
+      };
+
+    /*
+     * Renderização protegida.
+     */
+    const serviceName =
+      state.service &&
+      state.service.name
+        ? state.service.name
+        : "";
+
+    const serviceDuration =
+      state.service &&
+      state.service.duration
+        ? state.service.duration
+        : "";
+
+    const servicePrice =
+      state.service &&
+      state.service.price != null
+        ? state.service.price
+        : 0;
+
+    body.innerHTML = `
+      <div class="b-summary">
+
+        <div class="sum-row">
+
+          <span class="k">
+            Serviço
+          </span>
+
+          <span class="v">
+            ${esc(
+              serviceName
+            )}
+
+            <span class="sub">
+              ${esc(
+                serviceDuration
+              )} min
+            </span>
+          </span>
+
+        </div>
+
+        <div class="sum-row">
+
+          <span class="k">
+            Barbeiro
+          </span>
+
+          <span class="v">
+            ${esc(
+              b.name ||
+              "Sem preferência"
+            )}
+          </span>
+
+        </div>
+
+        <div class="sum-row">
+
+          <span class="k">
+            Data
+          </span>
+
+          <span class="v">
+            ${esc(
+              formattedDate
+            )}
+          </span>
+
+        </div>
+
+        <div class="sum-row">
+
+          <span class="k">
+            Hora
+          </span>
+
+          <span class="v">
+            ${esc(
+              String(
+                state.time || ""
+              ).slice(
+                0,
+                5
+              )
+            )}
+          </span>
+
+        </div>
+
+        <div class="sum-row">
+
+          <span class="k">
+            Nome
+          </span>
+
+          <span class="v">
+            ${esc(
+              state.nome || ""
+            )}
+          </span>
+
+        </div>
+
+        <div class="sum-row sum-total">
+
+          <span class="k">
+            Total
+          </span>
+
+          <span class="v">
+            ${esc(
+              servicePrice
+            )}€
+          </span>
+
+        </div>
+
+      </div>
+    `;
   }
 
   /* ============================================================
      STEP 7 — CONFIRMADO
+     
+     CORREÇÃO DA DATA TAMBÉM AQUI
      ============================================================ */
 
   function stepSuccess() {
@@ -1723,10 +1715,11 @@
     }
 
     /*
-      Aqui também mantemos a data original
-      e não alteramos a data guardada.
-    */
-
+     * A data que veio do Supabase permanece
+     * como YYYY-MM-DD.
+     *
+     * Não usamos Date nem parseISO.
+     */
     const rawDate =
       String(
         bk["Data"] || ""
@@ -1735,20 +1728,20 @@
     let formattedDate =
       rawDate;
 
-    const dateParts =
-      rawDate.split("-");
+    const match =
+      rawDate.match(
+        /^(\d{4})-(\d{2})-(\d{2})$/
+      );
 
-    if (
-      dateParts.length === 3
-    ) {
+    if (match) {
       const year =
-        dateParts[0];
+        match[1];
 
       const month =
-        dateParts[1];
+        match[2];
 
       const day =
-        dateParts[2];
+        match[3];
 
       formattedDate =
         `${day}/${month}/${year}`;
@@ -2026,6 +2019,10 @@
           barber_name:
             barberName,
 
+          /*
+           * A DATA É ENVIADA EXATAMENTE
+           * COMO FOI ESCOLHIDA.
+           */
           booking_date:
             state.date,
 
