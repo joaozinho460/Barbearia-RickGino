@@ -6,19 +6,6 @@
 
   /* ============================================================
      BOOKINGS STORE
-     Compatível com:
-     public.booking
-     
-     id
-     created_at
-     Nome
-     E-mail
-     Serviço
-     Barbeiro
-     Data
-     Hora
-     Status
-     used_id
      ============================================================ */
 
   const Store = {
@@ -94,10 +81,6 @@
       );
     },
 
-    /* ============================================================
-       CRIAR MARCAÇÃO
-       ============================================================ */
-
     async create(payload) {
       const auth = window.Auth;
 
@@ -108,8 +91,6 @@
           "Utilizador não autenticado."
         );
       }
-
-      /* ---------------- DEMO ---------------- */
 
       if (auth.isDemo()) {
         const all = JSON.parse(
@@ -147,8 +128,6 @@
         return rec;
       }
 
-      /* ---------------- SUPABASE ---------------- */
-
       const insertData = {
         "Nome": payload.nome || "",
         "E-mail": payload.email || "",
@@ -183,10 +162,6 @@
 
       return data;
     },
-
-    /* ============================================================
-       CANCELAR
-       ============================================================ */
 
     async cancel(id) {
       const auth = window.Auth;
@@ -243,10 +218,6 @@
 
       return data;
     },
-
-    /* ============================================================
-       HORÁRIOS OCUPADOS
-       ============================================================ */
 
     async getTakenSlots(dateISO) {
       const auth = window.Auth;
@@ -997,6 +968,7 @@
 
   /* ============================================================
      STEP 3 — DATA
+     ESTA PARTE NÃO FOI ALTERADA
      ============================================================ */
 
   function stepDate() {
@@ -1164,6 +1136,7 @@
 
   /* ============================================================
      STEP 4 — HORÁRIO
+     ESTA PARTE NÃO FOI ALTERADA
      ============================================================ */
 
   async function stepTime() {
@@ -1462,7 +1435,7 @@
 
   /* ============================================================
      STEP 6 — RESUMO
-     CORRIGIDO
+     CORREÇÃO: SOMENTE AQUI
      ============================================================ */
 
   function stepSummary() {
@@ -1473,13 +1446,11 @@
     ) {
       body.innerHTML = `
         <div class="b-auth-required">
-
           <p>
             Faltam dados da marcação.
             Volta atrás e seleciona
             o serviço, data e horário.
           </p>
-
         </div>
       `;
 
@@ -1487,35 +1458,34 @@
     }
 
     /*
-      AQUI NÃO USAMOS RG.parseISO().
-      A data que já está em state.date permanece intacta.
+     * A data selecionada já está em YYYY-MM-DD.
+     * Não usamos RG.parseISO() aqui.
+     * Isso evita que o Resumo quebre por causa
+     * de qualquer problema no parser da data.
+     */
 
-      Exemplo:
-      state.date = "2026-08-13"
-      aparece como:
-      13/08/2026
-    */
-
-    const dateParts =
-      String(state.date).split("-");
-
-    let formattedDate =
+    const rawDate =
       String(state.date);
 
-    if (
-      dateParts.length === 3
-    ) {
-      const year =
-        dateParts[0];
+    let formattedDate =
+      rawDate;
 
-      const month =
-        dateParts[1];
+    const parts =
+      rawDate.split("-");
 
-      const day =
-        dateParts[2];
+    if (parts.length === 3) {
+      const year = parts[0];
+      const month = parts[1];
+      const day = parts[2];
 
-      formattedDate =
-        `${day}/${month}/${year}`;
+      if (
+        year &&
+        month &&
+        day
+      ) {
+        formattedDate =
+          `${day.padStart(2, "0")}/${month.padStart(2, "0")}/${year}`;
+      }
     }
 
     const b =
@@ -1523,6 +1493,24 @@
         name:
           "Sem preferência"
       };
+
+    const serviceName =
+      state.service &&
+      state.service.name
+        ? state.service.name
+        : "";
+
+    const serviceDuration =
+      state.service &&
+      state.service.duration != null
+        ? state.service.duration
+        : "";
+
+    const servicePrice =
+      state.service &&
+      state.service.price != null
+        ? state.service.price
+        : "";
 
     body.innerHTML = `
       <div class="b-summary">
@@ -1534,14 +1522,10 @@
           </span>
 
           <span class="v">
-            ${esc(
-              state.service.name || ""
-            )}
+            ${esc(serviceName)}
 
             <span class="sub">
-              ${
-                state.service.duration || ""
-              } min
+              ${esc(serviceDuration)} min
             </span>
           </span>
 
@@ -1554,10 +1538,7 @@
           </span>
 
           <span class="v">
-            ${esc(
-              b.name ||
-              "Sem preferência"
-            )}
+            ${esc(b.name)}
           </span>
 
         </div>
@@ -1569,9 +1550,7 @@
           </span>
 
           <span class="v">
-            ${esc(
-              formattedDate
-            )}
+            ${esc(formattedDate)}
           </span>
 
         </div>
@@ -1583,14 +1562,7 @@
           </span>
 
           <span class="v">
-            ${esc(
-              String(
-                state.time || ""
-              ).slice(
-                0,
-                5
-              )
-            )}
+            ${esc(state.time)}
           </span>
 
         </div>
@@ -1602,9 +1574,7 @@
           </span>
 
           <span class="v">
-            ${esc(
-              state.nome || ""
-            )}
+            ${esc(state.nome)}
           </span>
 
         </div>
@@ -1616,9 +1586,7 @@
           </span>
 
           <span class="v">
-            ${
-              state.service.price || 0
-            }€
+            ${esc(servicePrice)}€
           </span>
 
         </div>
@@ -1849,10 +1817,6 @@
         ? state.barber.name
         : "Sem preferência";
 
-    /* ----------------------------------------------------------
-       VERIFICAR HORÁRIO
-       ---------------------------------------------------------- */
-
     try {
       const taken =
         await Store.getTakenSlots(
@@ -1920,10 +1884,6 @@
       );
     }
 
-    /* ----------------------------------------------------------
-       CRIAR
-       ---------------------------------------------------------- */
-
     try {
       const booking =
         await Store.create({
@@ -1946,7 +1906,6 @@
             state.time
         });
 
-      /* Atualizar perfil */
       try {
         await window.Auth.updateProfile(
           {
