@@ -8,7 +8,7 @@
      BOOKINGS STORE
      Compatível com:
      public.booking
-
+     
      id
      created_at
      Nome
@@ -100,6 +100,7 @@
 
     async create(payload) {
       const auth = window.Auth;
+
       const user = auth.getUser();
 
       if (!user) {
@@ -149,10 +150,10 @@
       /* ---------------- SUPABASE ---------------- */
 
       const insertData = {
-        "Nome": String(payload.nome || "").trim(),
-        "E-mail": String(payload.email || "").trim(),
-        "Serviço": String(payload.service_name || "").trim(),
-        "Barbeiro": String(payload.barber_name || "").trim(),
+        "Nome": payload.nome || "",
+        "E-mail": payload.email || "",
+        "Serviço": payload.service_name || "",
+        "Barbeiro": payload.barber_name || "",
         "Data": payload.booking_date || null,
         "Hora": payload.booking_time || null,
         "Status": "confirmada",
@@ -160,44 +161,23 @@
       };
 
       console.log(
-        "BOOKING - utilizador:",
-        user.id
-      );
-
-      console.log(
-        "BOOKING - dados:",
+        "Inserindo marcação:",
         insertData
       );
 
-      if (!insertData["Data"]) {
-        throw new Error(
-          "A data da marcação está vazia."
-        );
-      }
-
-      if (!insertData["Hora"]) {
-        throw new Error(
-          "O horário da marcação está vazio."
-        );
-      }
-
-      if (!insertData["Serviço"]) {
-        throw new Error(
-          "O serviço da marcação está vazio."
-        );
-      }
-
-      const client = auth.getClient();
+      console.log(
+        "Utilizador autenticado:",
+        user.id
+      );
 
       /*
        * IMPORTANTE:
-       * Não usamos .select() aqui.
-       *
-       * Assim o INSERT não depende de uma policy
-       * de SELECT para conseguir confirmar a marcação.
+       * Não usamos .select().single() depois do INSERT.
+       * Assim a criação não depende da policy SELECT.
        */
 
-      const { error } = await client
+      const { error } = await auth
+        .getClient()
         .from("booking")
         .insert(insertData);
 
@@ -207,38 +187,28 @@
           error
         );
 
-        console.error(
-          "Código:",
-          error.code
+        throw new Error(
+          error.message ||
+          "Erro ao criar a marcação."
         );
-
-        console.error(
-          "Mensagem:",
-          error.message
-        );
-
-        console.error(
-          "Detalhes:",
-          error.details
-        );
-
-        console.error(
-          "Hint:",
-          error.hint
-        );
-
-        throw error;
       }
 
       /*
-       * Retornamos os dados que acabaram de ser gravados.
-       * O Supabase já confirmou que o INSERT foi realizado.
+       * Devolvemos os dados que acabámos de inserir.
        */
 
       return {
         id: null,
         created_at: new Date().toISOString(),
-        ...insertData
+
+        Nome: insertData["Nome"],
+        "E-mail": insertData["E-mail"],
+        "Serviço": insertData["Serviço"],
+        "Barbeiro": insertData["Barbeiro"],
+        "Data": insertData["Data"],
+        "Hora": insertData["Hora"],
+        "Status": insertData["Status"],
+        "used_id": insertData["used_id"]
       };
     },
 
@@ -357,7 +327,7 @@
             String(
               b["Status"] || ""
             ).toLowerCase() !==
-              "cancelada"
+            "cancelada"
           );
         })
         .map(b => ({
@@ -1055,6 +1025,7 @@
 
   /* ============================================================
      STEP 3 — DATA
+     NÃO ALTERADO
      ============================================================ */
 
   function stepDate() {
@@ -1855,53 +1826,6 @@
       return;
     }
 
-    /* Segurança extra antes de enviar */
-
-    if (!window.Auth.isLoggedIn()) {
-      window.showToast(
-        "Inicia sessão para confirmar a marcação.",
-        "error"
-      );
-
-      return;
-    }
-
-    if (!state.service) {
-      window.showToast(
-        "Seleciona um serviço.",
-        "error"
-      );
-
-      return;
-    }
-
-    if (!state.date) {
-      window.showToast(
-        "Seleciona uma data.",
-        "error"
-      );
-
-      return;
-    }
-
-    if (!state.time) {
-      window.showToast(
-        "Seleciona um horário.",
-        "error"
-      );
-
-      return;
-    }
-
-    if (!state.nome.trim()) {
-      window.showToast(
-        "Indica o teu nome.",
-        "error"
-      );
-
-      return;
-    }
-
     state.submitting =
       true;
 
@@ -1960,12 +1884,8 @@
                   5
                 ) ===
                   wantedTime &&
-                String(
-                  x.barber_name || ""
-                ) ===
-                  String(
-                    barberName
-                  )
+                x.barber_name ===
+                  barberName
             )
           : taken.some(
               x =>
@@ -2003,11 +1923,6 @@
         "Verificação de horário falhou:",
         error
       );
-
-      /*
-       * Não bloqueamos a marcação apenas porque
-       * a consulta de disponibilidade falhou.
-       */
     }
 
     /* ----------------------------------------------------------
@@ -2015,30 +1930,6 @@
        ---------------------------------------------------------- */
 
     try {
-      console.log(
-        "CONFIRMANDO BOOKING..."
-      );
-
-      console.log(
-        "Data:",
-        state.date
-      );
-
-      console.log(
-        "Hora:",
-        state.time
-      );
-
-      console.log(
-        "Serviço:",
-        state.service.name
-      );
-
-      console.log(
-        "Barbeiro:",
-        barberName
-      );
-
       const booking =
         await Store.create({
           nome:
@@ -2060,13 +1951,7 @@
             state.time
         });
 
-      console.log(
-        "BOOKING CRIADO COM SUCESSO:",
-        booking
-      );
-
       /* Atualizar perfil */
-
       try {
         await window.Auth.updateProfile(
           {
@@ -2113,40 +1998,6 @@
       if (nextBtn) {
         nextBtn.disabled =
           false;
-      }
-
-      /*
-       * Mostra uma mensagem melhor no console
-       * para conseguirmos identificar RLS,
-       * coluna errada ou outro erro do Supabase.
-       */
-
-      if (error?.code) {
-        console.error(
-          "Supabase code:",
-          error.code
-        );
-      }
-
-      if (error?.message) {
-        console.error(
-          "Supabase message:",
-          error.message
-        );
-      }
-
-      if (error?.details) {
-        console.error(
-          "Supabase details:",
-          error.details
-        );
-      }
-
-      if (error?.hint) {
-        console.error(
-          "Supabase hint:",
-          error.hint
-        );
       }
 
       window.showToast(
