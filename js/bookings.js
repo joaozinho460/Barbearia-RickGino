@@ -71,8 +71,6 @@
       const auth = window.Auth;
       const reference = genReference();
 
-      /* ---------------- DEMO ---------------- */
-
       if (auth.isDemo()) {
         const all = JSON.parse(
           localStorage.getItem("rg_bookings") || "[]"
@@ -114,13 +112,7 @@
         return rec;
       }
 
-      /* ---------------- SUPABASE ---------------- */
-
       const user = auth.getUser();
-
-      if (!user) {
-        throw new Error("Utilizador não autenticado.");
-      }
 
       const { data, error } = await auth
         .getClient()
@@ -144,7 +136,7 @@
       return data;
     },
 
-    /* Cancelar: nunca apaga */
+    /* Cancelar: NUNCA apaga. Apenas muda o status. */
     async cancel(id) {
       const auth = window.Auth;
 
@@ -162,8 +154,7 @@
         }
 
         all[idx].status = "cancelled";
-        all[idx].updated_at =
-          new Date().toISOString();
+        all[idx].updated_at = new Date().toISOString();
 
         localStorage.setItem(
           "rg_bookings",
@@ -189,14 +180,9 @@
       return data;
     },
 
-    /* ======================================================
-       HORÁRIOS OCUPADOS
-       ====================================================== */
-
+    /* Horários ocupados */
     async getTakenSlots(dateISO) {
       const auth = window.Auth;
-
-      /* ---------------- DEMO ---------------- */
 
       if (auth.isDemo()) {
         const all = JSON.parse(
@@ -215,69 +201,57 @@
           }));
       }
 
-      /* ---------------- SUPABASE ---------------- */
-
       try {
-        const client = auth.getClient();
-
-        if (!client) {
-          return [];
-        }
-
-        /*
-         * Consulta o RPC.
-         *
-         * Se o RPC não existir ou der erro,
-         * NÃO bloqueamos os horários.
-         */
-
-        const result = await Promise.race([
-          client.rpc("get_taken_slots", {
+        const { data, error } = await auth
+          .getClient()
+          .rpc("get_taken_slots", {
             p_date: dateISO,
-          }),
+          });
 
-          new Promise((_, reject) =>
-            setTimeout(
-              () =>
-                reject(
-                  new Error(
-                    "Timeout na consulta de horários."
-                  )
-                ),
-              5000
-            )
-          ),
-        ]);
-
-        const { data, error } = result;
-
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
         return data || [];
       } catch (err) {
         console.warn(
-          "Consulta de horários ocupados falhou:",
+          "get_taken_slots indisponível:",
           err?.message
         );
-
-        /*
-         * IMPORTANTE:
-         *
-         * Mesmo que o RPC esteja errado/inexistente,
-         * os horários continuam aparecendo.
-         */
 
         return [];
       }
     },
   };
 
+  function genReference() {
+    const chars =
+      "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+    let r = "";
+
+    for (let i = 0; i < 6; i++) {
+      r +=
+        chars[
+          Math.floor(Math.random() * chars.length)
+        ];
+    }
+
+    const d = new Date();
+
+    return `RG${String(d.getFullYear()).slice(
+      2
+    )}${String(d.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}${String(d.getDate()).padStart(
+      2,
+      "0"
+    )}-${r}`;
+  }
+
   window.BookingsStore = Store;
 
   /* ========================================================
-     WIZARD
+     WIZARD DE MARCAÇÃO
      ======================================================== */
 
   const Steps = [
@@ -292,27 +266,16 @@
 
   const state = {
     step: 0,
-
     service: null,
-
     barber: null,
-
     noBarberPref: true,
-
     date: null,
-
     time: null,
-
     nome: "",
-
     telefone: "",
-
     email: "",
-
     taken: [],
-
     submitting: false,
-
     lastBooking: null,
   };
 
@@ -324,10 +287,6 @@
     nextBtn,
     stepTitle,
     stepLabel;
-
-  /* ========================================================
-     OPEN
-     ======================================================== */
 
   function open(opts = {}) {
     resetState();
@@ -348,13 +307,6 @@
       state.noBarberPref = !state.barber;
     }
 
-    if (!modal) {
-      console.error(
-        "bookingModal não encontrado."
-      );
-      return;
-    }
-
     modal.classList.add("open");
 
     document.body.style.overflow = "hidden";
@@ -362,91 +314,45 @@
     render();
   }
 
-  /* ========================================================
-     CLOSE
-     ======================================================== */
-
   function close() {
-    if (!modal) return;
-
     modal.classList.remove("open");
 
     document.body.style.overflow = "";
   }
 
-  /* ========================================================
-     RESET
-     ======================================================== */
-
   function resetState() {
     state.step = 0;
-
     state.service = null;
-
     state.barber = null;
-
     state.noBarberPref = true;
-
     state.date = null;
-
     state.time = null;
-
     state.taken = [];
-
     state.submitting = false;
-
     state.lastBooking = null;
-
-    state.nome = "";
-
-    state.telefone = "";
-
-    state.email = "";
   }
 
-  /* ========================================================
-     INIT
-     ======================================================== */
-
   function init() {
-    modal =
-      document.getElementById("bookingModal");
+    modal = document.getElementById("bookingModal");
 
     if (!modal) return;
 
-    body =
-      document.getElementById("bookingStep");
-
-    dots =
-      document.getElementById("bookingDots");
-
-    foot =
-      document.getElementById("bookingFoot");
-
-    backBtn =
-      document.getElementById("bookingBack");
-
-    nextBtn =
-      document.getElementById("bookingNext");
-
+    body = document.getElementById("bookingStep");
+    dots = document.getElementById("bookingDots");
+    foot = document.getElementById("bookingFoot");
+    backBtn = document.getElementById("bookingBack");
+    nextBtn = document.getElementById("bookingNext");
     stepLabel =
-      document.getElementById(
-        "bookingStepLabel"
-      );
-
+      document.getElementById("bookingStepLabel");
     stepTitle =
-      document.getElementById(
-        "bookingStepTitle"
-      );
+      document.getElementById("bookingStepTitle");
 
     document
       .getElementById("bookingClose")
       ?.addEventListener("click", close);
 
     modal.addEventListener("click", (e) => {
-      if (e.target === modal) {
-        close();
-      }
+      if (e.target === modal) close();
     });
 
     document.addEventListener("keydown", (e) => {
@@ -458,50 +364,30 @@
       }
     });
 
-    backBtn.addEventListener(
-      "click",
-      () => {
-        if (state.step === 6) return;
+    backBtn.addEventListener("click", () => {
+      if (state.step === 6) return;
 
-        state.step--;
+      state.step--;
 
+      if (state.step === 4) {
+        refreshStepData();
+      }
+
+      render();
+    });
+
+    nextBtn.addEventListener("click", onNext);
+
+    window.Auth.setOnAuthChange(() => {
+      if (modal.classList.contains("open")) {
         if (state.step === 4) {
           refreshStepData();
         }
 
         render();
       }
-    );
-
-    nextBtn.addEventListener(
-      "click",
-      onNext
-    );
-
-    /* Atualiza quando o login muda */
-
-    if (
-      window.Auth &&
-      typeof window.Auth.setOnAuthChange ===
-        "function"
-    ) {
-      window.Auth.setOnAuthChange(() => {
-        if (
-          modal.classList.contains("open")
-        ) {
-          if (state.step === 4) {
-            refreshStepData();
-          }
-
-          render();
-        }
-      });
-    }
+    });
   }
-
-  /* ========================================================
-     RENDER
-     ======================================================== */
 
   function render() {
     const s = state.step;
@@ -509,16 +395,13 @@
     stepLabel.textContent =
       `Passo ${s + 1} de ${Steps.length}`;
 
-    stepTitle.textContent =
-      Steps[s];
+    stepTitle.textContent = Steps[s];
 
     dots.innerHTML = Steps.map(
       (_, i) =>
         `<span class="step-dot ${
           i === s ? "active" : ""
-        } ${
-          i < s ? "done" : ""
-        }"></span>`
+        } ${i < s ? "done" : ""}"></span>`
     ).join("");
 
     body.innerHTML = "";
@@ -547,37 +430,24 @@
         <span>Confirmar marcação</span>
       `;
 
-      nextBtn.classList.add(
-        "btn-gold"
-      );
+      nextBtn.classList.add("btn-gold");
 
-      nextBtn.disabled =
-        state.submitting;
+      nextBtn.disabled = state.submitting;
     } else {
       nextBtn.innerHTML = `
-        Continuar
-        ${window.RGICONS.arrowRight}
+        Continuar ${window.RGICONS.arrowRight}
       `;
 
-      nextBtn.classList.add(
-        "btn-gold"
-      );
+      nextBtn.classList.add("btn-gold");
 
       nextBtn.disabled = false;
     }
   }
 
-  /* ========================================================
-     NEXT
-     ======================================================== */
-
   async function onNext() {
     const s = state.step;
 
-    if (
-      s === 0 &&
-      !state.service
-    ) {
+    if (s === 0 && !state.service) {
       return window.showToast(
         "Escolhe um serviço para continuar.",
         "info"
@@ -595,20 +465,14 @@
       );
     }
 
-    if (
-      s === 2 &&
-      !state.date
-    ) {
+    if (s === 2 && !state.date) {
       return window.showToast(
         "Escolhe um dia.",
         "info"
       );
     }
 
-    if (
-      s === 3 &&
-      !state.time
-    ) {
+    if (s === 3 && !state.time) {
       return window.showToast(
         "Escolhe um horário.",
         "info"
@@ -616,9 +480,7 @@
     }
 
     if (s === 4) {
-      if (
-        !window.Auth.isLoggedIn()
-      ) {
+      if (!window.Auth.isLoggedIn()) {
         return window.showToast(
           "Inicia sessão para continuar.",
           "info"
@@ -658,34 +520,22 @@
     render();
   }
 
-  /* ========================================================
-     PROFILE DATA
-     ======================================================== */
-
   async function refreshStepData() {
     const prof =
       await window.Auth.getProfile();
 
     if (prof) {
-      state.nome =
-        prof.nome || "";
-
-      state.telefone =
-        prof.telefone || "";
-
-      state.email =
-        prof.email || "";
+      state.nome = prof.nome || "";
+      state.telefone = prof.telefone || "";
+      state.email = prof.email || "";
     }
   }
 
-  /* ========================================================
-     STEP 1 — SERVIÇO
-     ======================================================== */
+  /* ---------- Passo 1: Serviço ---------- */
 
   function stepService() {
     body.innerHTML = `
       <div class="service-options">
-
         ${D.services
           .map(
             (s) => `
@@ -698,7 +548,6 @@
             }"
             data-svc="${esc(s.id)}"
           >
-
             <span class="so-name">
               ${esc(s.name)}
             </span>
@@ -709,48 +558,36 @@
                 ${s.price}€
               </span>
             </span>
-
           </button>
         `
           )
           .join("")}
-
       </div>
     `;
 
     body
-      .querySelectorAll(
-        ".service-opt"
-      )
+      .querySelectorAll(".service-opt")
       .forEach((btn) =>
-        btn.addEventListener(
-          "click",
-          () => {
-            state.service =
-              D.services.find(
-                (s) =>
-                  s.id ===
-                  btn.dataset.svc
-              );
+        btn.addEventListener("click", () => {
+          state.service =
+            D.services.find(
+              (s) =>
+                s.id === btn.dataset.svc
+            );
 
-            body
-              .querySelectorAll(
-                ".service-opt"
+          body
+            .querySelectorAll(".service-opt")
+            .forEach((b) =>
+              b.classList.toggle(
+                "selected",
+                b === btn
               )
-              .forEach((b) =>
-                b.classList.toggle(
-                  "selected",
-                  b === btn
-                )
-              );
-          }
-        )
+            );
+        })
       );
   }
 
-  /* ========================================================
-     STEP 2 — BARBEIRO
-     ======================================================== */
+  /* ---------- Passo 2: Barbeiro ---------- */
 
   function stepBarber() {
     const anySelected =
@@ -762,13 +599,10 @@
         <button
           type="button"
           class="barber-opt ${
-            anySelected
-              ? "selected"
-              : ""
+            anySelected ? "selected" : ""
           }"
           data-barber="any"
         >
-
           <span class="bo-avatar">
             ${window.RGICONS.scissors}
           </span>
@@ -780,7 +614,6 @@
           <span class="badge-any">
             Primeiro disponível
           </span>
-
         </button>
 
         ${D.team
@@ -789,25 +622,19 @@
           <button
             type="button"
             class="barber-opt ${
-              state.barber?.id ===
-              t.id
+              state.barber?.id === t.id
                 ? "selected"
                 : ""
             }"
-            data-barber="${esc(
-              t.id
-            )}"
+            data-barber="${esc(t.id)}"
           >
-
             <span class="bo-avatar">
               ${
                 t.photo
                   ? `<img src="${esc(
                       t.photo
                     )}" alt="">`
-                  : window.RG.initials(
-                      t.name
-                    )
+                  : window.RG.initials(t.name)
               }
             </span>
 
@@ -818,7 +645,6 @@
             <span class="bo-spec">
               ${esc(t.specialty)}
             </span>
-
           </button>
         `
           )
@@ -828,50 +654,38 @@
     `;
 
     body
-      .querySelectorAll(
-        ".barber-opt"
-      )
+      .querySelectorAll(".barber-opt")
       .forEach((btn) =>
-        btn.addEventListener(
-          "click",
-          () => {
-            if (
-              btn.dataset.barber ===
-              "any"
-            ) {
-              state.barber = null;
-              state.noBarberPref =
-                true;
-            } else {
-              state.barber =
-                D.team.find(
-                  (t) =>
-                    t.id ===
-                    btn.dataset.barber
-                );
-
-              state.noBarberPref =
-                false;
-            }
-
-            body
-              .querySelectorAll(
-                ".barber-opt"
-              )
-              .forEach((b) =>
-                b.classList.toggle(
-                  "selected",
-                  b === btn
-                )
+        btn.addEventListener("click", () => {
+          if (
+            btn.dataset.barber === "any"
+          ) {
+            state.barber = null;
+            state.noBarberPref = true;
+          } else {
+            state.barber =
+              D.team.find(
+                (t) =>
+                  t.id ===
+                  btn.dataset.barber
               );
+
+            state.noBarberPref = false;
           }
-        )
+
+          body
+            .querySelectorAll(".barber-opt")
+            .forEach((b) =>
+              b.classList.toggle(
+                "selected",
+                b === btn
+              )
+            );
+        })
       );
   }
 
-  /* ========================================================
-     STEP 3 — DATA
-     ======================================================== */
+  /* ---------- Passo 3: Data ---------- */
 
   function stepDate() {
     const days = [];
@@ -880,22 +694,16 @@
 
     for (
       let i = 0;
-      i <
-      (D.bookingDaysAhead ||
-        14);
+      i < (D.bookingDaysAhead || 14);
       i++
     ) {
-      const d =
-        RG.addDays(now, i);
+      const d = RG.addDays(now, i);
 
-      const dow =
-        d.getDay();
+      const dow = d.getDay();
 
-      const closed =
-        (
-          D.bookingClosedWeekdays ||
-          []
-        ).includes(dow);
+      const closed = (
+        D.bookingClosedWeekdays || []
+      ).includes(dow);
 
       days.push({
         date: RG.toISODate(d),
@@ -931,38 +739,24 @@
 
     body.innerHTML = `
       <div class="date-options">
-
         ${days
           .map((d) => {
             const dt =
-              RG.parseISO(
-                d.date
-              );
+              RG.parseISO(d.date);
 
             const sel =
-              state.date ===
-              d.date;
+              state.date === d.date;
 
             return `
               <button
                 type="button"
                 class="date-opt ${
-                  sel
-                    ? "selected"
-                    : ""
+                  sel ? "selected" : ""
                 } ${
-                  d.closed
-                    ? "disabled"
-                    : ""
+                  d.closed ? "disabled" : ""
                 }"
                 data-date="${d.date}"
-                ${
-                  d.closed
-                    ? "disabled"
-                    : ""
-                }
               >
-
                 <span class="dow">
                   ${dowNames[d.dow]}
                 </span>
@@ -972,16 +766,12 @@
                 </span>
 
                 <span class="mon">
-                  ${monNames[
-                    dt.getMonth()
-                  ]}
+                  ${monNames[dt.getMonth()]}
                 </span>
-
               </button>
             `;
           })
           .join("")}
-
       </div>
 
       <p
@@ -997,35 +787,40 @@
     `;
 
     body
-      .querySelectorAll(
-        ".date-opt:not(.disabled)"
-      )
+      .querySelectorAll(".date-opt")
       .forEach((btn) =>
-        btn.addEventListener(
-          "click",
-          () => {
-            state.date =
-              btn.dataset.date;
-
-            state.time = null;
-
-            body
-              .querySelectorAll(
-                ".date-opt"
-              )
-              .forEach((b) =>
-                b.classList.toggle(
-                  "selected",
-                  b === btn
-                )
-              );
+        btn.addEventListener("click", () => {
+          if (
+            btn.classList.contains("disabled")
+          ) {
+            return;
           }
-        )
+
+          state.date =
+            btn.dataset.date;
+
+          state.time = null;
+
+          body
+            .querySelectorAll(".date-opt")
+            .forEach((b) =>
+              b.classList.toggle(
+                "selected",
+                b === btn
+              )
+            );
+        })
       );
   }
 
   /* ========================================================
-     STEP 4 — HORÁRIO
+     PASSO 4: HORÁRIO
+     
+     CORRIGIDO:
+     - Não depende exclusivamente de D.bookingSlots.
+     - Se bookingSlots estiver vazio/indisponível,
+       mostra horários padrão.
+     - Aceita horários do Supabase como 16:30:00.
      ======================================================== */
 
   async function stepTime() {
@@ -1037,20 +832,9 @@
     body.innerHTML = `
       <div class="b-loading">
         <div class="spinner"></div>
-
-        <p>
-          A consultar disponibilidade...
-        </p>
+        <p>A consultar disponibilidade...</p>
       </div>
     `;
-
-    /*
-     * Consulta os horários ocupados.
-     *
-     * Se o Supabase/RPC falhar,
-     * getTakenSlots devolve [] e
-     * os horários continuam a aparecer.
-     */
 
     try {
       state.taken =
@@ -1066,20 +850,22 @@
       );
     }
 
-    const taken =
-      state.taken || [];
+    const taken = Array.isArray(
+      state.taken
+    )
+      ? state.taken
+      : [];
 
     /*
-     * Usa os horários definidos no SITE_DATA.
+     * Primeiro tenta usar os horários
+     * configurados no SITE_DATA.
      *
-     * Caso D.bookingSlots não exista,
-     * utiliza estes como fallback.
+     * Se não existirem ou estiverem vazios,
+     * usa os horários abaixo.
      */
 
     const slots =
-      Array.isArray(
-        D.bookingSlots
-      ) &&
+      Array.isArray(D.bookingSlots) &&
       D.bookingSlots.length
         ? D.bookingSlots
         : [
@@ -1091,6 +877,7 @@
             "11:30",
             "12:00",
             "12:30",
+
             "14:00",
             "14:30",
             "15:00",
@@ -1102,15 +889,27 @@
             "18:00",
             "18:30",
             "19:00",
+            "19:30",
           ];
 
+    const normalizeTime = (value) => {
+      if (!value) return "";
+
+      return String(value)
+        .trim()
+        .slice(0, 5);
+    };
+
     const timeTaken = (t) => {
+      const currentTime =
+        normalizeTime(t);
+
       if (state.barber) {
         return taken.some(
           (x) =>
-            String(
+            normalizeTime(
               x.booking_time
-            ) === String(t) &&
+            ) === currentTime &&
             x.barber_name ===
               state.barber.name
         );
@@ -1118,9 +917,9 @@
 
       return taken.some(
         (x) =>
-          String(
+          normalizeTime(
             x.booking_time
-          ) === String(t)
+          ) === currentTime
       );
     };
 
@@ -1150,7 +949,10 @@
               <button
                 type="button"
                 class="time-opt ${
-                  state.time === t
+                  normalizeTime(
+                    state.time
+                  ) ===
+                  normalizeTime(t)
                     ? "selected"
                     : ""
                 } ${
@@ -1158,9 +960,7 @@
                     ? "disabled"
                     : ""
                 }"
-                data-time="${esc(
-                  t
-                )}"
+                data-time="${esc(t)}"
                 ${
                   occupied
                     ? "disabled"
@@ -1177,13 +977,13 @@
     `;
 
     body
-      .querySelectorAll(
-        ".time-opt:not(.disabled)"
-      )
+      .querySelectorAll(".time-opt")
       .forEach((btn) =>
         btn.addEventListener(
           "click",
           () => {
+            if (btn.disabled) return;
+
             state.time =
               btn.dataset.time;
 
@@ -1202,9 +1002,7 @@
       );
   }
 
-  /* ========================================================
-     STEP 5 — DADOS PESSOAIS
-     ======================================================== */
+  /* ---------- Passo 5: Dados pessoais ---------- */
 
   function stepData() {
     const logged =
@@ -1236,9 +1034,7 @@
       `;
 
       body
-        .querySelector(
-          "#bLoginGoogle"
-        )
+        .querySelector("#bLoginGoogle")
         .addEventListener(
           "click",
           () =>
@@ -1259,7 +1055,6 @@
       <div class="b-form">
 
         <div class="field">
-
           <label for="bkNome">
             Nome
           </label>
@@ -1267,16 +1062,12 @@
           <input
             id="bkNome"
             type="text"
-            value="${esc(
-              state.nome
-            )}"
+            value="${esc(state.nome)}"
             placeholder="O teu nome"
           >
-
         </div>
 
         <div class="field">
-
           <label for="bkTel">
             Telefone
           </label>
@@ -1284,16 +1075,12 @@
           <input
             id="bkTel"
             type="tel"
-            value="${esc(
-              state.telefone
-            )}"
+            value="${esc(state.telefone)}"
             placeholder="+351 ..."
           >
-
         </div>
 
         <div class="field full">
-
           <label for="bkEmail">
             Email
           </label>
@@ -1301,55 +1088,42 @@
           <input
             id="bkEmail"
             type="email"
-            value="${esc(
-              state.email
-            )}"
+            value="${esc(state.email)}"
             disabled
           >
 
           <span class="hint">
             O email vem da tua conta Google.
           </span>
-
         </div>
 
       </div>
     `;
 
     const iNome =
-      body.querySelector(
-        "#bkNome"
-      );
+      body.querySelector("#bkNome");
 
     const iTel =
-      body.querySelector(
-        "#bkTel"
-      );
+      body.querySelector("#bkTel");
 
     iNome.addEventListener(
       "input",
       () =>
-        (state.nome =
-          iNome.value)
+        (state.nome = iNome.value)
     );
 
     iTel.addEventListener(
       "input",
       () =>
-        (state.telefone =
-          iTel.value)
+        (state.telefone = iTel.value)
     );
   }
 
-  /* ========================================================
-     STEP 6 — RESUMO
-     ======================================================== */
+  /* ---------- Passo 6: Resumo ---------- */
 
   function stepSummary() {
     const dt =
-      RG.parseISO(
-        state.date
-      );
+      RG.parseISO(state.date);
 
     const b =
       state.barber || {
@@ -1365,13 +1139,10 @@
           </span>
 
           <span class="v">
-            ${esc(
-              state.service.name
-            )}
+            ${esc(state.service.name)}
 
             <span class="sub">
-              ${state.service.duration}
-              min
+              ${state.service.duration} min
             </span>
           </span>
         </div>
@@ -1437,9 +1208,7 @@
     `;
   }
 
-  /* ========================================================
-     STEP 7 — CONFIRMAÇÃO
-     ======================================================== */
+  /* ---------- Passo 7: Confirmação ---------- */
 
   function stepSuccess() {
     const bk =
@@ -1461,8 +1230,7 @@
         </span>
 
         <h3>
-          Marcação
-          <em>confirmada</em>
+          Marcação <em>confirmada</em>
         </h3>
 
         <p>
@@ -1478,9 +1246,7 @@
             </span>
 
             <span class="v">
-              ${esc(
-                bk.service_name
-              )}
+              ${esc(bk.service_name)}
             </span>
           </div>
 
@@ -1558,36 +1324,26 @@
     `;
 
     body
-      .querySelector(
-        "#goBookings"
-      )
-      .addEventListener(
-        "click",
-        () => {
-          close();
+      .querySelector("#goBookings")
+      .addEventListener("click", () => {
+        close();
 
-          window.location.href =
-            "profile.html#minhas-marcacoes";
-        }
-      );
+        window.location.href =
+          "profile.html#minhas-marcacoes";
+      });
 
     body
-      .querySelector(
-        "#closeBooking"
-      )
+      .querySelector("#closeBooking")
       .addEventListener(
         "click",
         close
       );
   }
 
-  /* ========================================================
-     CONFIRMAR MARCAÇÃO
-     ======================================================== */
+  /* ---------- Confirmação da marcação ---------- */
 
   async function confirmBooking() {
-    if (state.submitting)
-      return;
+    if (state.submitting) return;
 
     state.submitting = true;
 
@@ -1613,13 +1369,15 @@
         ? state.barber.name
         : "Sem preferência";
 
-    /* Verificação final */
-
     try {
       const taken =
         await Store.getTakenSlots(
           state.date
         );
+
+      const normalizedSelectedTime =
+        String(state.time)
+          .slice(0, 5);
 
       const clash =
         state.barber
@@ -1627,10 +1385,8 @@
               (x) =>
                 String(
                   x.booking_time
-                ) ===
-                  String(
-                    state.time
-                  ) &&
+                ).slice(0, 5) ===
+                  normalizedSelectedTime &&
                 x.barber_name ===
                   barberName
             )
@@ -1638,10 +1394,8 @@
               (x) =>
                 String(
                   x.booking_time
-                ) ===
-                String(
-                  state.time
-                )
+                ).slice(0, 5) ===
+                normalizedSelectedTime
             );
 
       if (clash) {
@@ -1660,12 +1414,10 @@
       }
     } catch (err) {
       console.warn(
-        "Verificação final falhou:",
+        "Não foi possível verificar disponibilidade:",
         err
       );
     }
-
-    /* Criar marcação */
 
     try {
       const booking =
@@ -1683,21 +1435,15 @@
             state.time,
         });
 
-      /* Atualizar perfil */
-
       try {
         const prof =
           await window.Auth.getProfile();
 
-        await window.Auth.updateProfile(
-          {
-            nome:
-              state.nome.trim(),
-
-            telefone:
-              state.telefone.trim(),
-          }
-        );
+        await window.Auth.updateProfile({
+          nome: state.nome.trim(),
+          telefone:
+            state.telefone.trim(),
+        });
 
         void prof;
       } catch (err) {
@@ -1711,8 +1457,6 @@
         booking;
 
       state.step = 6;
-
-      state.submitting = false;
 
       window.showToast(
         "Marcação confirmada com sucesso!",
@@ -1737,14 +1481,10 @@
     }
   }
 
-  /* ========================================================
-     ESCAPE
-     ======================================================== */
+  /* ---------- esc helper local ---------- */
 
   function esc(s) {
-    return String(
-      s ?? ""
-    ).replace(
+    return String(s ?? "").replace(
       /[&<>"']/g,
       (c) =>
         ({
@@ -1757,9 +1497,7 @@
     );
   }
 
-  /* ========================================================
-     EXPOSIÇÃO
-     ======================================================== */
+  /* ---------- Exposição ---------- */
 
   window.BookingFlow = {
     open,
