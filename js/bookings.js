@@ -12,15 +12,26 @@
 
   /* ========================================================
      BOOKINGS STORE
+     Supabase:
+     tabela: booking
+     colunas:
+     id, created_at, Nome, E-mail, Serviço, Barbeiro,
+     Data, Hora, Status, used_id
      ======================================================== */
+
   const Store = {
+
     async listAll() {
       const auth = window.Auth;
 
       if (auth.isDemo()) {
-        const all = JSON.parse(localStorage.getItem("rg_bookings") || "[]");
+        const all = JSON.parse(
+          localStorage.getItem("rg_bookings") || "[]"
+        );
+
         const prof = auth.getUser();
         if (!prof) return [];
+
         return all.filter((b) => b.user_id === prof.id);
       }
 
@@ -29,42 +40,69 @@
 
       const { data, error } = await auth
         .getClient()
-        .from("bookings")
+        .from("booking")
         .select("*")
-        .order("booking_date", { ascending: false });
+        .eq("used_id", user.id)
+        .order("Data", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro ao carregar marcações:", error);
+        throw error;
+      }
 
       return data || [];
     },
 
     async upcoming() {
       const all = await Store.listAll();
+
       const today = RG.toISODate(new Date());
 
       return all
-        .filter(
-          (b) =>
-            b.status === "confirmed" &&
-            String(b.booking_date) >= today
-        )
-        .sort((a, b) =>
-          (a.booking_date + a.booking_time).localeCompare(
-            b.booking_date + b.booking_time
-          )
-        );
+        .filter((b) => {
+          const status = String(b["Status"] || "").toLowerCase();
+
+          return (
+            (status === "confirmada" || status === "confirmed") &&
+            String(b["Data"]) >= today
+          );
+        })
+        .sort((a, b) => {
+          const dateA =
+            String(a["Data"] || "") + String(a["Hora"] || "");
+
+          const dateB =
+            String(b["Data"] || "") + String(b["Hora"] || "");
+
+          return dateA.localeCompare(dateB);
+        });
     },
 
     async byId(id) {
       const all = await Store.listAll();
+
       return (
-        all.find((b) => String(b.id) === String(id)) || null
+        all.find(
+          (b) => String(b.id) === String(id)
+        ) || null
       );
     },
 
+    /* ======================================================
+       CRIAR MARCAÇÃO
+       ====================================================== */
+
     async create(payload) {
       const auth = window.Auth;
+      const user = auth.getUser();
+
+      if (!user) {
+        throw new Error("Utilizador não autenticado.");
+      }
+
       const reference = genReference();
+
+      /* ---------------- DEMO ---------------- */
 
       if (auth.isDemo()) {
         const all = JSON.parse(
@@ -74,15 +112,28 @@
         const now = new Date().toISOString();
 
         const rec = {
-          id: "bk_" + Math.random().toString(36).slice(2, 12),
-          user_id: auth.getUser().id,
+          id:
+            "bk_" +
+            Math.random()
+              .toString(36)
+              .slice(2, 12),
+
+          user_id: user.id,
+
           service_name: payload.service_name,
+
           barber_name: payload.barber_name,
+
           booking_date: payload.booking_date,
+
           booking_time: payload.booking_time,
+
           status: "confirmed",
+
           reference,
+
           created_at: now,
+
           updated_at: now,
         };
 
@@ -96,69 +147,58 @@
         return rec;
       }
 
-      const user = auth.getUser();
+      /* ---------------- SUPABASE ---------------- */
 
-      if (!user) {
-        throw new Error("Utilizador não autenticado.");
-      }
+      const record = {
+        "Nome": payload.nome || user.user_metadata?.full_name || "",
+        "E-mail": payload.email || user.email || "",
+        "Serviço": payload.service_name || "",
+        "Barbeiro": payload.barber_name || "",
+        "Data": payload.booking_date,
+        "Hora": payload.booking_time,
+        "Status": "confirmada",
+        "used_id": user.id,
+      };
 
-      /*
-       * IMPORTANTE:
-       * A tabela do Supabase que estás a usar chama-se "booking"
-       * e as colunas são:
-       * Nome
-       * E-mail
-       * Serviço
-       * Barbeiro
-       * Data
-       * Hora
-       * Status
-       * used_id
-       *
-       * Por isso o insert abaixo usa exatamente esses nomes.
-       */
+      console.log("A criar marcação:", record);
 
       const { data, error } = await auth
         .getClient()
         .from("booking")
-        .insert([
-          {
-            "Nome": payload.nome || "",
-            "E-mail": payload.email || user.email || "",
-            "Serviço": payload.service_name || "",
-            "Barbeiro": payload.barber_name || "",
-            "Data": payload.booking_date,
-            "Hora": payload.booking_time,
-            "Status": "confirmada",
-            used_id: user.id,
-          },
-        ])
+        .insert([record])
         .select()
         .single();
 
       if (error) {
-        console.error("Erro Supabase ao criar marcação:", error);
+        console.error(
+          "ERRO SUPABASE AO CRIAR MARCAÇÃO:",
+          error
+        );
+
         throw error;
       }
 
       /*
-       * Normaliza a resposta da tabela para o restante
-       * do sistema continuar funcionando.
+       * A tabela não tem coluna reference.
+       * Guardamos a referência apenas no objeto local
+       * para poder mostrar na confirmação.
        */
+
       return {
         ...data,
-        id: data.id,
-        user_id: data.used_id,
+        reference,
         service_name: data["Serviço"],
         barber_name: data["Barbeiro"],
         booking_date: data["Data"],
         booking_time: data["Hora"],
-        status: data["Status"],
-        reference:
-          data.reference ||
-          reference,
       };
     },
+
+    /* ======================================================
+       CANCELAR
+       Nunca elimina.
+       Apenas altera Status.
+       ====================================================== */
 
     async cancel(id) {
       const auth = window.Auth;
@@ -177,7 +217,8 @@
         }
 
         all[idx].status = "cancelled";
-        all[idx].updated_at = new Date().toISOString();
+        all[idx].updated_at =
+          new Date().toISOString();
 
         localStorage.setItem(
           "rg_bookings",
@@ -194,21 +235,31 @@
           "Status": "cancelada",
         })
         .eq("id", id)
+        .eq("used_id", auth.getUser().id)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error(
+          "Erro ao cancelar marcação:",
+          error
+        );
+
+        throw error;
+      }
 
       return {
         ...data,
-        user_id: data.used_id,
         service_name: data["Serviço"],
         barber_name: data["Barbeiro"],
         booking_date: data["Data"],
         booking_time: data["Hora"],
-        status: data["Status"],
       };
     },
+
+    /* ======================================================
+       HORÁRIOS OCUPADOS
+       ====================================================== */
 
     async getTakenSlots(dateISO) {
       const auth = window.Auth;
@@ -230,28 +281,36 @@
           }));
       }
 
-      /*
-       * Consulta diretamente a tabela booking.
-       * Não depende da RPC para mostrar os horários.
-       */
       try {
         const { data, error } = await auth
           .getClient()
           .from("booking")
           .select('"Hora", "Barbeiro", "Status"')
-          .eq('"Data"', dateISO);
+          .eq("Data", dateISO);
 
-        if (error) throw error;
+        if (error) {
+          console.error(
+            "Erro ao consultar horários:",
+            error
+          );
+
+          throw error;
+        }
 
         return (data || [])
-          .filter(
-            (b) =>
-              b["Status"] !== "cancelada" &&
-              b["Status"] !== "cancelled"
-          )
+          .filter((b) => {
+            const status = String(
+              b["Status"] || ""
+            ).toLowerCase();
+
+            return (
+              status !== "cancelada" &&
+              status !== "cancelled"
+            );
+          })
           .map((b) => ({
-            booking_time: String(b["Hora"] || "").slice(0, 5),
-            barber_name: b["Barbeiro"] || "",
+            booking_time: b["Hora"],
+            barber_name: b["Barbeiro"],
           }));
       } catch (err) {
         console.warn(
@@ -271,14 +330,19 @@
     let r = "";
 
     for (let i = 0; i < 6; i++) {
-      r += chars[
-        Math.floor(Math.random() * chars.length)
-      ];
+      r +=
+        chars[
+          Math.floor(
+            Math.random() * chars.length
+          )
+        ];
     }
 
     const d = new Date();
 
-    return `RG${String(d.getFullYear()).slice(2)}${String(
+    return `RG${String(
+      d.getFullYear()
+    ).slice(2)}${String(
       d.getMonth() + 1
     ).padStart(2, "0")}${String(
       d.getDate()
@@ -326,17 +390,6 @@
     stepLabel;
 
   function open(opts = {}) {
-    if (!modal) {
-      init();
-    }
-
-    if (!modal) {
-      console.error(
-        "Booking modal não encontrado."
-      );
-      return;
-    }
-
     resetState();
 
     if (opts.serviceId) {
@@ -355,7 +408,15 @@
       state.noBarberPref = !state.barber;
     }
 
+    if (!modal) {
+      console.error(
+        "bookingModal não encontrado."
+      );
+      return;
+    }
+
     modal.classList.add("open");
+
     document.body.style.overflow = "hidden";
 
     render();
@@ -365,6 +426,7 @@
     if (!modal) return;
 
     modal.classList.remove("open");
+
     document.body.style.overflow = "";
   }
 
@@ -381,9 +443,10 @@
   }
 
   function init() {
-    modal = document.getElementById(
-      "bookingModal"
-    );
+    modal =
+      document.getElementById(
+        "bookingModal"
+      );
 
     if (!modal) return;
 
@@ -478,8 +541,9 @@
       window.Auth.setOnAuthChange(
         () => {
           if (
-            modal &&
-            modal.classList.contains("open")
+            modal.classList.contains(
+              "open"
+            )
           ) {
             if (state.step === 4) {
               refreshStepData();
@@ -494,14 +558,10 @@
 
   function render() {
     if (
-      !modal ||
       !body ||
       !dots ||
       !foot ||
-      !backBtn ||
-      !nextBtn ||
-      !stepLabel ||
-      !stepTitle
+      !nextBtn
     ) {
       return;
     }
@@ -514,15 +574,14 @@
     stepTitle.textContent =
       Steps[s];
 
-    dots.innerHTML =
-      Steps.map(
-        (_, i) =>
-          `<span class="step-dot ${
-            i === s ? "active" : ""
-          } ${
-            i < s ? "done" : ""
-          }"></span>`
-      ).join("");
+    dots.innerHTML = Steps.map(
+      (_, i) =>
+        `<span class="step-dot ${
+          i === s ? "active" : ""
+        } ${
+          i < s ? "done" : ""
+        }"></span>`
+    ).join("");
 
     body.innerHTML = "";
 
@@ -545,8 +604,13 @@
       );
 
       body.innerHTML = `
-        <div class="b-error">
-          <p>Não foi possível carregar este passo.</p>
+        <div class="b-auth-required">
+          <span class="auth-ic">
+            ${window.RGICONS?.info || ""}
+          </span>
+          <p>
+            Não foi possível carregar este passo.
+          </p>
         </div>
       `;
 
@@ -557,17 +621,15 @@
       s === 6 ? "none" : "flex";
 
     backBtn.style.visibility =
-      s === 0 ? "hidden" : "visible";
+      s === 0
+        ? "hidden"
+        : "visible";
 
     if (s === 5) {
       nextBtn.innerHTML = `
         ${window.RGICONS.check}
         <span>Confirmar marcação</span>
       `;
-
-      nextBtn.classList.add(
-        "btn-gold"
-      );
 
       nextBtn.disabled =
         state.submitting;
@@ -576,10 +638,6 @@
         Continuar
         ${window.RGICONS.arrowRight}
       `;
-
-      nextBtn.classList.add(
-        "btn-gold"
-      );
 
       nextBtn.disabled = false;
     }
@@ -663,26 +721,31 @@
 
     if (state.step === 4) {
       await refreshStepData();
-      render();
-      return;
     }
 
     render();
   }
 
   async function refreshStepData() {
-    const prof =
-      await window.Auth.getProfile();
+    try {
+      const prof =
+        await window.Auth.getProfile();
 
-    if (prof) {
-      state.nome =
-        prof.nome || "";
+      if (prof) {
+        state.nome =
+          prof.nome || "";
 
-      state.telefone =
-        prof.telefone || "";
+        state.telefone =
+          prof.telefone || "";
 
-      state.email =
-        prof.email || "";
+        state.email =
+          prof.email || "";
+      }
+    } catch (err) {
+      console.warn(
+        "Não foi possível carregar perfil:",
+        err
+      );
     }
   }
 
@@ -723,8 +786,10 @@
     `;
 
     body
-      .querySelectorAll(".service-opt")
-      .forEach((btn) => {
+      .querySelectorAll(
+        ".service-opt"
+      )
+      .forEach((btn) =>
         btn.addEventListener(
           "click",
           () => {
@@ -746,8 +811,8 @@
                 )
               );
           }
-        );
-      });
+        )
+      );
   }
 
   /* ========================================================
@@ -794,7 +859,9 @@
                 ? "selected"
                 : ""
             }"
-            data-barber="${esc(t.id)}"
+            data-barber="${esc(
+              t.id
+            )}"
           >
             <span class="bo-avatar">
               ${
@@ -813,7 +880,9 @@
             </span>
 
             <span class="bo-spec">
-              ${esc(t.specialty)}
+              ${esc(
+                t.specialty
+              )}
             </span>
           </button>
         `
@@ -824,8 +893,10 @@
     `;
 
     body
-      .querySelectorAll(".barber-opt")
-      .forEach((btn) => {
+      .querySelectorAll(
+        ".barber-opt"
+      )
+      .forEach((btn) =>
         btn.addEventListener(
           "click",
           () => {
@@ -834,8 +905,7 @@
               "any"
             ) {
               state.barber = null;
-              state.noBarberPref =
-                true;
+              state.noBarberPref = true;
             } else {
               state.barber =
                 D.team.find(
@@ -859,12 +929,15 @@
                 )
               );
           }
-        );
-      });
+        )
+      );
   }
 
   /* ========================================================
      PASSO 3 — DATA
+
+     ESTA PARTE FOI MANTIDA COM A MESMA LÓGICA
+     DO TEU CÓDIGO.
      ======================================================== */
 
   function stepDate() {
@@ -872,59 +945,30 @@
 
     const now = new Date();
 
-    /*
-     * Mostra o mês atual completo a partir de hoje.
-     * Dias que já passaram ficam bloqueados.
-     * Depois continua automaticamente para os meses seguintes.
-     */
-
-    const start =
-      new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        1
-      );
-
-    const totalDays =
-      D.bookingDaysAhead || 90;
-
     for (
       let i = 0;
-      i < totalDays;
+      i <
+      (D.bookingDaysAhead ||
+        14);
       i++
     ) {
       const d =
-        new Date(start);
-
-      d.setDate(
-        start.getDate() + i
-      );
+        RG.addDays(now, i);
 
       const dow =
         d.getDay();
 
-      const date =
-        RG.toISODate(d);
-
-      const isPast =
-        d <
-        new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate()
-        );
-
       const closed =
-        (D.bookingClosedWeekdays ||
+        (
+          D.bookingClosedWeekdays ||
           []
         ).includes(dow);
 
       days.push({
-        date,
+        date:
+          RG.toISODate(d),
         dow,
-        closed:
-          closed || isPast,
-        isPast,
+        closed,
       });
     }
 
@@ -986,11 +1030,7 @@
                 }
               >
                 <span class="dow">
-                  ${
-                    dowNames[
-                      d.dow
-                    ]
-                  }
+                  ${dowNames[d.dow]}
                 </span>
 
                 <span class="day">
@@ -1017,20 +1057,22 @@
           margin-top:14px
         "
       >
-        ${window.RGICONS.info}
-        Os dias que já passaram e os dias
-        encerrados aparecem bloqueados.
+        ${
+          window.RGICONS.info
+        }
+        Os dias encerrados aparecem esbatidos.
       </p>
     `;
 
     body
-      .querySelectorAll(".date-opt")
-      .forEach((btn) => {
+      .querySelectorAll(
+        ".date-opt"
+      )
+      .forEach((btn) =>
         btn.addEventListener(
           "click",
           () => {
             if (
-              btn.disabled ||
               btn.classList.contains(
                 "disabled"
               )
@@ -1054,8 +1096,8 @@
                 )
               );
           }
-        );
-      });
+        )
+      );
   }
 
   /* ========================================================
@@ -1072,7 +1114,7 @@
       <div class="b-loading">
         <div class="spinner"></div>
         <p>
-          A consultar disponibilidade...
+          A consultar disponibilidade…
         </p>
       </div>
     `;
@@ -1084,6 +1126,7 @@
         );
     } catch (err) {
       state.taken = [];
+
       console.warn(err);
     }
 
@@ -1097,15 +1140,17 @@
       state.barber
         ? taken.some(
             (x) =>
-              x.booking_time ===
-                t &&
+              String(
+                x.booking_time
+              ) === String(t) &&
               x.barber_name ===
                 state.barber.name
           )
         : taken.some(
             (x) =>
-              x.booking_time ===
-              t
+              String(
+                x.booking_time
+              ) === String(t)
           );
 
     body.innerHTML = `
@@ -1122,6 +1167,7 @@
       </div>
 
       <div class="time-options">
+
         ${slots
           .map(
             (t) => {
@@ -1132,7 +1178,8 @@
                 <button
                   type="button"
                   class="time-opt ${
-                    state.time === t
+                    state.time ===
+                    t
                       ? "selected"
                       : ""
                   } ${
@@ -1140,30 +1187,33 @@
                       ? "disabled"
                       : ""
                   }"
-                  data-time="${t}"
+                  data-time="${esc(
+                    t
+                  )}"
                   ${
                     occupied
                       ? "disabled"
                       : ""
                   }
                 >
-                  ${t}
+                  ${esc(t)}
                 </button>
               `;
             }
           )
           .join("")}
+
       </div>
     `;
 
     body
-      .querySelectorAll(".time-opt")
-      .forEach((btn) => {
+      .querySelectorAll(
+        ".time-opt"
+      )
+      .forEach((btn) =>
         btn.addEventListener(
           "click",
           () => {
-            if (btn.disabled) return;
-
             state.time =
               btn.dataset.time;
 
@@ -1178,8 +1228,8 @@
                 )
               );
           }
-        );
-      });
+        )
+      );
   }
 
   /* ========================================================
@@ -1269,6 +1319,7 @@
         </div>
 
         <div class="field full">
+
           <label for="bkEmail">
             Email
           </label>
@@ -1285,6 +1336,7 @@
           <span class="hint">
             O email vem da tua conta Google.
           </span>
+
         </div>
 
       </div>
@@ -1326,10 +1378,14 @@
       !state.time
     ) {
       body.innerHTML = `
-        <div class="b-error">
+        <div class="b-auth-required">
+          <span class="auth-ic">
+            ${window.RGICONS.info}
+          </span>
+
           <p>
-            Seleciona o serviço, a data
-            e o horário antes de continuar.
+            Falta selecionar o serviço,
+            a data ou o horário.
           </p>
         </div>
       `;
@@ -1361,8 +1417,10 @@
             )}
 
             <span class="sub">
-              ${state.service.duration}
-              min
+              ${
+                state.service
+                  .duration
+              } min
             </span>
           </span>
         </div>
@@ -1386,8 +1444,12 @@
             ${dt
               .getDate()
               .toString()
-              .padStart(2, "0")}/${(
-              dt.getMonth() + 1
+              .padStart(
+                2,
+                "0"
+              )}/${(
+              dt.getMonth() +
+              1
             )
               .toString()
               .padStart(
@@ -1427,7 +1489,10 @@
           </span>
 
           <span class="v">
-            ${state.service.price}€
+            ${
+              state.service
+                .price
+            }€
           </span>
         </div>
 
@@ -1436,7 +1501,7 @@
   }
 
   /* ========================================================
-     PASSO 7 — CONFIRMAÇÃO
+     PASSO 7 — CONFIRMADO
      ======================================================== */
 
   function stepSuccess() {
@@ -1445,10 +1510,10 @@
 
     if (!bk) {
       body.innerHTML = `
-        <div class="b-error">
+        <div class="b-auth-required">
           <p>
             Não foi possível carregar
-            os dados da marcação.
+            a confirmação.
           </p>
         </div>
       `;
@@ -1487,7 +1552,7 @@
         </h3>
 
         <p>
-          Obrigado! Enviámos-te a confirmação.
+          Obrigado!
           Vemo-nos na barbearia.
         </p>
 
@@ -1501,8 +1566,8 @@
             <span class="v">
               ${esc(
                 bk.service_name ||
-                  bk["Serviço"] ||
-                  ""
+                bk["Serviço"] ||
+                ""
               )}
             </span>
           </div>
@@ -1530,7 +1595,8 @@
                   2,
                   "0"
                 )}/${(
-                dt.getMonth() + 1
+                dt.getMonth() +
+                1
               )
                 .toString()
                 .padStart(
@@ -1547,7 +1613,7 @@
 
             <span class="v">
               ${esc(
-                bookingTime || ""
+                bookingTime
               )}
             </span>
           </div>
@@ -1558,8 +1624,7 @@
           Referência ·
           ${esc(
             bk.reference ||
-              bk.id ||
-              ""
+              "—"
           )}
         </span>
 
@@ -1573,7 +1638,10 @@
             class="btn btn-gold"
             id="goBookings"
           >
-            ${window.RGICONS.calendar}
+            ${
+              window.RGICONS
+                .calendar
+            }
             Ver minhas marcações
           </button>
 
@@ -1619,7 +1687,8 @@
      ======================================================== */
 
   async function confirmBooking() {
-    if (state.submitting) return;
+    if (state.submitting)
+      return;
 
     state.submitting = true;
 
@@ -1645,6 +1714,8 @@
         ? state.barber.name
         : "Sem preferência";
 
+    /* Verificação final */
+
     try {
       const taken =
         await Store.getTakenSlots(
@@ -1655,15 +1726,23 @@
         state.barber
           ? taken.some(
               (x) =>
-                x.booking_time ===
-                  state.time &&
+                String(
+                  x.booking_time
+                ) ===
+                  String(
+                    state.time
+                  ) &&
                 x.barber_name ===
                   barberName
             )
           : taken.some(
               (x) =>
-                x.booking_time ===
-                state.time
+                String(
+                  x.booking_time
+                ) ===
+                String(
+                  state.time
+                )
             );
 
       if (clash) {
@@ -1673,7 +1752,9 @@
         );
 
         state.time = null;
+
         state.submitting = false;
+
         state.step = 3;
 
         return render();
@@ -1689,12 +1770,6 @@
       const user =
         window.Auth.getUser();
 
-      if (!user) {
-        throw new Error(
-          "Utilizador não autenticado."
-        );
-      }
-
       const booking =
         await Store.create({
           nome:
@@ -1702,7 +1777,7 @@
 
           email:
             state.email ||
-            user.email ||
+            user?.email ||
             "",
 
           service_name:
@@ -1717,6 +1792,8 @@
           booking_time:
             state.time,
         });
+
+      /* Atualiza perfil */
 
       try {
         await window.Auth.updateProfile(
@@ -1755,19 +1832,21 @@
         err
       );
 
+      state.submitting = false;
+
+      nextBtn.disabled = false;
+
       window.showToast(
         "Não foi possível confirmar a marcação. Tenta novamente.",
         "error"
       );
-
-      state.submitting = false;
 
       render();
     }
   }
 
   /* ========================================================
-     ESC
+     ESCAPE
      ======================================================== */
 
   function esc(s) {
@@ -1795,46 +1874,6 @@
     close,
     init,
   };
-
-  /* ========================================================
-     CORREÇÃO DO BOTÃO "MARCAR AGORA"
-     
-     Isto funciona mesmo quando o botão é criado
-     dinamicamente pelo auth.js.
-     ======================================================== */
-
-  document.addEventListener(
-    "click",
-    (e) => {
-      const btn =
-        e.target.closest(
-          "[data-book]"
-        );
-
-      if (!btn) return;
-
-      e.preventDefault();
-
-      /*
-       * Se o modal ainda não tiver sido inicializado,
-       * inicializa primeiro.
-       */
-      if (!modal) {
-        init();
-      }
-
-      /*
-       * Depois abre normalmente o wizard.
-       */
-      if (modal) {
-        open();
-      }
-    }
-  );
-
-  /* ========================================================
-     DOM READY
-     ======================================================== */
 
   document.addEventListener(
     "DOMContentLoaded",
