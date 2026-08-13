@@ -6,6 +6,19 @@
 
   /* ============================================================
      BOOKINGS STORE
+     Compatível com:
+     public.booking
+
+     id
+     created_at
+     Nome
+     E-mail
+     Serviço
+     Barbeiro
+     Data
+     Hora
+     Status
+     used_id
      ============================================================ */
 
   const Store = {
@@ -46,6 +59,10 @@
     async upcoming() {
       const all = await Store.listAll();
 
+      /*
+       * A data é comparada como string YYYY-MM-DD.
+       * Não usamos new Date() para evitar problemas de fuso horário.
+       */
       const today = RG.toISODate(new Date());
 
       return all
@@ -53,18 +70,21 @@
           const status =
             String(b["Status"] || "").toLowerCase();
 
+          const bookingDate =
+            normalizeISODate(b["Data"]);
+
           return (
             status === "confirmada" &&
-            String(b["Data"] || "") >= today
+            bookingDate >= today
           );
         })
         .sort((a, b) => {
           const da =
-            String(a["Data"] || "") +
+            normalizeISODate(a["Data"]) +
             String(a["Hora"] || "");
 
           const db =
-            String(b["Data"] || "") +
+            normalizeISODate(b["Data"]) +
             String(b["Hora"] || "");
 
           return da.localeCompare(db);
@@ -117,7 +137,14 @@
           "E-mail": payload.email || "",
           "Serviço": payload.service_name || "",
           "Barbeiro": payload.barber_name || "",
-          "Data": payload.booking_date || "",
+
+          /*
+           * A DATA É GUARDADA EXATAMENTE COMO FOI ESCOLHIDA.
+           */
+          "Data": normalizeISODate(
+            payload.booking_date
+          ),
+
           "Hora": payload.booking_time || "",
           "Status": "confirmada",
 
@@ -141,7 +168,15 @@
         "E-mail": payload.email || "",
         "Serviço": payload.service_name || "",
         "Barbeiro": payload.barber_name || "",
-        "Data": payload.booking_date || null,
+
+        /*
+         * NÃO CONVERTER PARA Date.
+         * Supabase recebe YYYY-MM-DD diretamente.
+         */
+        "Data": normalizeISODate(
+          payload.booking_date
+        ) || null,
+
         "Hora": payload.booking_time || null,
         "Status": "confirmada",
         "used_id": user.id
@@ -238,6 +273,12 @@
     async getTakenSlots(dateISO) {
       const auth = window.Auth;
 
+      /*
+       * A data enviada para o Supabase permanece YYYY-MM-DD.
+       */
+      const requestedDate =
+        normalizeISODate(dateISO);
+
       if (auth.isDemo()) {
         const all = JSON.parse(
           localStorage.getItem("rg_bookings") || "[]"
@@ -246,8 +287,9 @@
         return all
           .filter(b => {
             return (
-              String(b["Data"]) ===
-                String(dateISO) &&
+              normalizeISODate(
+                b["Data"]
+              ) === requestedDate &&
               String(
                 b["Status"] || ""
               ).toLowerCase() !==
@@ -269,7 +311,7 @@
         .getClient()
         .from("booking")
         .select('"Hora", "Barbeiro", "Data", "Status"')
-        .eq("Data", dateISO);
+        .eq("Data", requestedDate);
 
       if (error) {
         console.warn(
@@ -286,7 +328,7 @@
             String(
               b["Status"] || ""
             ).toLowerCase() !==
-            "cancelada"
+              "cancelada"
           );
         })
         .map(b => ({
@@ -812,11 +854,11 @@
 
                 <span class="so-meta">
                   <span>
-                    ${esc(s.duration)} min
+                    ${s.duration} min
                   </span>
 
                   <span class="so-price">
-                    ${esc(s.price)}€
+                    ${s.price}€
                   </span>
                 </span>
 
@@ -984,7 +1026,6 @@
 
   /* ============================================================
      STEP 3 — DATA
-     NÃO ALTERADO
      ============================================================ */
 
   function stepDate() {
@@ -1015,6 +1056,10 @@
           []
         ).includes(dow);
 
+      /*
+       * AQUI A DATA CONTINUA EXATAMENTE
+       * COMO YYYY-MM-DD.
+       */
       days.push({
         date:
           RG.toISODate(d),
@@ -1053,10 +1098,28 @@
 
         ${days
           .map(d => {
-            const dt =
-              RG.parseISO(
+
+            /*
+             * NÃO usamos new Date(d.date).
+             * NÃO usamos RG.parseISO(d.date).
+             *
+             * Pegamos dia e mês diretamente da string.
+             */
+
+            const parts =
+              String(
                 d.date
-              );
+              ).split("-");
+
+            const day =
+              parts.length === 3
+                ? Number(parts[2])
+                : "";
+
+            const month =
+              parts.length === 3
+                ? Number(parts[1]) - 1
+                : "";
 
             const selected =
               state.date ===
@@ -1074,7 +1137,9 @@
                     ? "disabled"
                     : ""
                 }"
-                data-date="${esc(d.date)}"
+                data-date="${esc(
+                  d.date
+                )}"
                 ${
                   d.closed
                     ? "disabled"
@@ -1087,14 +1152,14 @@
                 </span>
 
                 <span class="day">
-                  ${dt.getDate()}
+                  ${esc(String(day))}
                 </span>
 
                 <span class="mon">
                   ${
-                    monNames[
-                      dt.getMonth()
-                    ]
+                    month !== ""
+                      ? monNames[month]
+                      : ""
                   }
                 </span>
 
@@ -1129,8 +1194,14 @@
               return;
             }
 
+            /*
+             * A DATA É GUARDADA DIRETAMENTE.
+             * Nenhuma conversão.
+             */
             state.date =
-              btn.dataset.date;
+              String(
+                btn.dataset.date
+              );
 
             state.time =
               null;
@@ -1450,34 +1521,22 @@
 
   /* ============================================================
      STEP 6 — RESUMO
-     CORREÇÃO DEFINITIVA
-     
-     IMPORTANTE:
-     - NÃO altera state.date
-     - NÃO usa RG.parseISO()
-     - NÃO usa new Date() para a data escolhida
-     - Mantém a data original do calendário
-     - Apenas transforma YYYY-MM-DD em DD/MM/YYYY
      ============================================================ */
 
   function stepSummary() {
-    const service =
-      state.service || null;
-
-    const bookingDate =
-      String(
-        state.date || ""
-      ).trim();
-
-    const bookingTime =
-      String(
-        state.time || ""
-      ).trim();
+    /*
+     * NÃO CONVERTER state.date PARA Date.
+     *
+     * state.date continua:
+     * YYYY-MM-DD
+     *
+     * Só alteramos a forma como aparece.
+     */
 
     if (
-      !service ||
-      !bookingDate ||
-      !bookingTime
+      !state.service ||
+      !state.date ||
+      !state.time
     ) {
       body.innerHTML = `
         <div class="b-auth-required">
@@ -1494,24 +1553,26 @@
       return;
     }
 
-    /*
-      A DATA NÃO É ALTERADA.
-
-      Se state.date for:
-      2026-08-13
-
-      apenas mostramos:
-      13/08/2026
-
-      O valor original continua:
-      state.date === "2026-08-13"
-    */
+    const rawDate =
+      String(
+        state.date
+      ).trim();
 
     let formattedDate =
-      bookingDate;
+      rawDate;
+
+    /*
+     * YYYY-MM-DD
+     *       ↓
+     * DD/MM/YYYY
+     *
+     * Sem Date.
+     * Sem parseISO.
+     * Sem alteração de state.date.
+     */
 
     const dateParts =
-      bookingDate.split("-");
+      rawDate.split("-");
 
     if (
       dateParts.length === 3 &&
@@ -1523,60 +1584,11 @@
         `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
     }
 
-    const barber =
-      state.barber &&
-      typeof state.barber === "object"
-        ? state.barber
-        : null;
-
-    const barberName =
-      barber &&
-      barber.name
-        ? barber.name
-        : "Sem preferência";
-
-    const serviceName =
-      service.name != null
-        ? String(service.name)
-        : "";
-
-    const serviceDuration =
-      service.duration != null
-        ? String(service.duration)
-        : "";
-
-    const servicePrice =
-      service.price != null
-        ? String(service.price)
-        : "0";
-
-    const clientName =
-      state.nome != null
-        ? String(state.nome)
-        : "";
-
-    const safeDate =
-      esc(formattedDate);
-
-    const safeTime =
-      esc(
-        bookingTime.slice(0, 5)
-      );
-
-    const safeService =
-      esc(serviceName);
-
-    const safeDuration =
-      esc(serviceDuration);
-
-    const safeBarber =
-      esc(barberName);
-
-    const safeName =
-      esc(clientName);
-
-    const safePrice =
-      esc(servicePrice);
+    const b =
+      state.barber || {
+        name:
+          "Sem preferência"
+      };
 
     body.innerHTML = `
       <div class="b-summary">
@@ -1588,17 +1600,15 @@
           </span>
 
           <span class="v">
-            ${safeService}
+            ${esc(
+              state.service.name || ""
+            )}
 
-            ${
-              safeDuration
-                ? `
-                  <span class="sub">
-                    ${safeDuration} min
-                  </span>
-                `
-                : ""
-            }
+            <span class="sub">
+              ${
+                state.service.duration || ""
+              } min
+            </span>
           </span>
 
         </div>
@@ -1610,7 +1620,10 @@
           </span>
 
           <span class="v">
-            ${safeBarber}
+            ${esc(
+              b.name ||
+              "Sem preferência"
+            )}
           </span>
 
         </div>
@@ -1622,7 +1635,9 @@
           </span>
 
           <span class="v">
-            ${safeDate}
+            ${esc(
+              formattedDate
+            )}
           </span>
 
         </div>
@@ -1634,7 +1649,14 @@
           </span>
 
           <span class="v">
-            ${safeTime}
+            ${esc(
+              String(
+                state.time || ""
+              ).slice(
+                0,
+                5
+              )
+            )}
           </span>
 
         </div>
@@ -1646,7 +1668,9 @@
           </span>
 
           <span class="v">
-            ${safeName}
+            ${esc(
+              state.nome || ""
+            )}
           </span>
 
         </div>
@@ -1658,7 +1682,9 @@
           </span>
 
           <span class="v">
-            ${safePrice}€
+            ${
+              state.service.price || 0
+            }€
           </span>
 
         </div>
@@ -1690,26 +1716,32 @@
     }
 
     /*
-      Aqui também não mexemos no valor original
-      da data guardada na marcação.
-    */
+     * CORREÇÃO DA DATA:
+     *
+     * NÃO usamos:
+     * RG.parseISO()
+     * new Date()
+     *
+     * A data vem do Supabase como YYYY-MM-DD
+     * e é formatada diretamente.
+     */
 
-    const dateValue =
-      String(
-        bk["Data"] || ""
+    const rawDate =
+      normalizeISODate(
+        bk["Data"]
       );
 
     let formattedDate =
-      dateValue;
+      rawDate;
 
-    const parts =
-      dateValue.split("-");
+    const dateParts =
+      rawDate.split("-");
 
     if (
-      parts.length === 3
+      dateParts.length === 3
     ) {
       formattedDate =
-        `${parts[2]}/${parts[1]}/${parts[0]}`;
+        `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
     }
 
     body.innerHTML = `
@@ -1984,8 +2016,14 @@
           barber_name:
             barberName,
 
+          /*
+           * A DATA É ENVIADA EXATAMENTE
+           * COMO YYYY-MM-DD.
+           */
           booking_date:
-            state.date,
+            normalizeISODate(
+              state.date
+            ),
 
           booking_time:
             state.time
@@ -2047,6 +2085,39 @@
 
       render();
     }
+  }
+
+  /* ============================================================
+     DATA — FUNÇÃO AUXILIAR
+     ============================================================ */
+
+  function normalizeISODate(value) {
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return "";
+    }
+
+    /*
+     * Se já for YYYY-MM-DD,
+     * devolve exatamente a mesma data.
+     */
+    const text =
+      String(value).trim();
+
+    const match =
+      text.match(
+        /^(\d{4})-(\d{2})-(\d{2})/
+      );
+
+    if (match) {
+      return (
+        `${match[1]}-${match[2]}-${match[3]}`
+      );
+    }
+
+    return text;
   }
 
   /* ============================================================
