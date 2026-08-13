@@ -6,19 +6,6 @@
 
   /* ============================================================
      BOOKINGS STORE
-     Compatível com:
-     public.booking
-
-     id
-     created_at
-     Nome
-     E-mail
-     Serviço
-     Barbeiro
-     Data
-     Hora
-     Status
-     used_id
      ============================================================ */
 
   const Store = {
@@ -299,7 +286,7 @@
             String(
               b["Status"] || ""
             ).toLowerCase() !==
-              "cancelada"
+            "cancelada"
           );
         })
         .map(b => ({
@@ -358,84 +345,6 @@
   let nextBtn;
   let stepTitle;
   let stepLabel;
-
-  /* ============================================================
-     DATA HELPERS
-     IMPORTANTE:
-     NÃO usamos new Date("YYYY-MM-DD")
-     porque isso pode causar problemas de fuso horário.
-     ============================================================ */
-
-  function formatBookingDate(value) {
-    const raw = String(value || "").trim();
-
-    if (!raw) {
-      return "";
-    }
-
-    /*
-      Formato principal guardado no banco:
-      YYYY-MM-DD
-
-      Exemplo:
-      2026-08-13
-      vira:
-      13/08/2026
-    */
-
-    const match = raw.match(
-      /^(\d{4})-(\d{2})-(\d{2})$/
-    );
-
-    if (match) {
-      const year = match[1];
-      const month = match[2];
-      const day = match[3];
-
-      return `${day}/${month}/${year}`;
-    }
-
-    /*
-      Caso o Supabase devolva uma data com hora,
-      pegamos somente a parte da data.
-    */
-
-    const datePart = raw.slice(0, 10);
-
-    const matchWithTime = datePart.match(
-      /^(\d{4})-(\d{2})-(\d{2})$/
-    );
-
-    if (matchWithTime) {
-      return `${matchWithTime[3]}/${matchWithTime[2]}/${matchWithTime[1]}`;
-    }
-
-    /*
-      Último fallback:
-      devolve o valor original em vez de
-      quebrar o passo.
-    */
-
-    return raw;
-  }
-
-  function getDateParts(value) {
-    const raw = String(value || "").trim();
-
-    const match = raw.match(
-      /^(\d{4})-(\d{2})-(\d{2})$/
-    );
-
-    if (!match) {
-      return null;
-    }
-
-    return {
-      year: Number(match[1]),
-      month: Number(match[2]),
-      day: Number(match[3])
-    };
-  }
 
   /* ============================================================
      OPEN
@@ -903,11 +812,11 @@
 
                 <span class="so-meta">
                   <span>
-                    ${s.duration} min
+                    ${esc(s.duration)} min
                   </span>
 
                   <span class="so-price">
-                    ${s.price}€
+                    ${esc(s.price)}€
                   </span>
                 </span>
 
@@ -1075,7 +984,7 @@
 
   /* ============================================================
      STEP 3 — DATA
-     NÃO ALTERADO NA LÓGICA DE SELEÇÃO
+     NÃO ALTERADO
      ============================================================ */
 
   function stepDate() {
@@ -1144,49 +1053,10 @@
 
         ${days
           .map(d => {
-            /*
-              Não alteramos a data original.
-              Apenas usamos os números da própria string
-              para mostrar o dia/mês.
-            */
-
-            const parts =
-              getDateParts(
+            const dt =
+              RG.parseISO(
                 d.date
               );
-
-            let day = "";
-            let month = "";
-
-            if (parts) {
-              day =
-                String(
-                  parts.day
-                );
-
-              month =
-                monNames[
-                  parts.month - 1
-                ];
-            } else {
-              /*
-                Fallback somente visual.
-              */
-              const dt =
-                new Date(
-                  d.date
-                );
-
-              day =
-                String(
-                  dt.getDate()
-                );
-
-              month =
-                monNames[
-                  dt.getMonth()
-                ];
-            }
 
             const selected =
               state.date ===
@@ -1204,9 +1074,7 @@
                     ? "disabled"
                     : ""
                 }"
-                data-date="${esc(
-                  d.date
-                )}"
+                data-date="${esc(d.date)}"
                 ${
                   d.closed
                     ? "disabled"
@@ -1219,11 +1087,15 @@
                 </span>
 
                 <span class="day">
-                  ${esc(day)}
+                  ${dt.getDate()}
                 </span>
 
                 <span class="mon">
-                  ${esc(month)}
+                  ${
+                    monNames[
+                      dt.getMonth()
+                    ]
+                  }
                 </span>
 
               </button>
@@ -1256,13 +1128,6 @@
             ) {
               return;
             }
-
-            /*
-              IMPORTANTE:
-              A data continua exatamente
-              como veio do calendário:
-              YYYY-MM-DD
-            */
 
             state.date =
               btn.dataset.date;
@@ -1585,20 +1450,34 @@
 
   /* ============================================================
      STEP 6 — RESUMO
-     CORREÇÃO DEFINITIVA DA DATA
+     CORREÇÃO DEFINITIVA
+     
+     IMPORTANTE:
+     - NÃO altera state.date
+     - NÃO usa RG.parseISO()
+     - NÃO usa new Date() para a data escolhida
+     - Mantém a data original do calendário
+     - Apenas transforma YYYY-MM-DD em DD/MM/YYYY
      ============================================================ */
 
   function stepSummary() {
-    /*
-      Verificação segura.
-      Se alguma coisa faltar, não deixa uma operação
-      de data quebrar o resumo.
-    */
+    const service =
+      state.service || null;
+
+    const bookingDate =
+      String(
+        state.date || ""
+      ).trim();
+
+    const bookingTime =
+      String(
+        state.time || ""
+      ).trim();
 
     if (
-      !state.service ||
-      !state.date ||
-      !state.time
+      !service ||
+      !bookingDate ||
+      !bookingTime
     ) {
       body.innerHTML = `
         <div class="b-auth-required">
@@ -1616,36 +1495,88 @@
     }
 
     /*
-      NÃO usar:
-      new Date(state.date)
+      A DATA NÃO É ALTERADA.
 
-      NÃO usar:
-      RG.parseISO(state.date)
+      Se state.date for:
+      2026-08-13
 
-      A data fica como YYYY-MM-DD e é
-      convertida manualmente para DD/MM/YYYY.
+      apenas mostramos:
+      13/08/2026
+
+      O valor original continua:
+      state.date === "2026-08-13"
     */
 
-    const formattedDate =
-      formatBookingDate(
-        state.date
-      );
+    let formattedDate =
+      bookingDate;
 
-    /*
-      Se por algum motivo a data vier
-      num formato inesperado, mostramos
-      o valor original em vez de gerar erro.
-    */
+    const dateParts =
+      bookingDate.split("-");
+
+    if (
+      dateParts.length === 3 &&
+      /^\d{4}$/.test(dateParts[0]) &&
+      /^\d{2}$/.test(dateParts[1]) &&
+      /^\d{2}$/.test(dateParts[2])
+    ) {
+      formattedDate =
+        `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+    }
+
+    const barber =
+      state.barber &&
+      typeof state.barber === "object"
+        ? state.barber
+        : null;
+
+    const barberName =
+      barber &&
+      barber.name
+        ? barber.name
+        : "Sem preferência";
+
+    const serviceName =
+      service.name != null
+        ? String(service.name)
+        : "";
+
+    const serviceDuration =
+      service.duration != null
+        ? String(service.duration)
+        : "";
+
+    const servicePrice =
+      service.price != null
+        ? String(service.price)
+        : "0";
+
+    const clientName =
+      state.nome != null
+        ? String(state.nome)
+        : "";
 
     const safeDate =
-      formattedDate ||
-      String(state.date || "");
+      esc(formattedDate);
 
-    const b =
-      state.barber || {
-        name:
-          "Sem preferência"
-      };
+    const safeTime =
+      esc(
+        bookingTime.slice(0, 5)
+      );
+
+    const safeService =
+      esc(serviceName);
+
+    const safeDuration =
+      esc(serviceDuration);
+
+    const safeBarber =
+      esc(barberName);
+
+    const safeName =
+      esc(clientName);
+
+    const safePrice =
+      esc(servicePrice);
 
     body.innerHTML = `
       <div class="b-summary">
@@ -1657,15 +1588,17 @@
           </span>
 
           <span class="v">
-            ${esc(
-              state.service.name || ""
-            )}
+            ${safeService}
 
-            <span class="sub">
-              ${
-                state.service.duration || ""
-              } min
-            </span>
+            ${
+              safeDuration
+                ? `
+                  <span class="sub">
+                    ${safeDuration} min
+                  </span>
+                `
+                : ""
+            }
           </span>
 
         </div>
@@ -1677,10 +1610,7 @@
           </span>
 
           <span class="v">
-            ${esc(
-              b.name ||
-              "Sem preferência"
-            )}
+            ${safeBarber}
           </span>
 
         </div>
@@ -1692,9 +1622,7 @@
           </span>
 
           <span class="v">
-            ${esc(
-              safeDate
-            )}
+            ${safeDate}
           </span>
 
         </div>
@@ -1706,14 +1634,7 @@
           </span>
 
           <span class="v">
-            ${esc(
-              String(
-                state.time || ""
-              ).slice(
-                0,
-                5
-              )
-            )}
+            ${safeTime}
           </span>
 
         </div>
@@ -1725,9 +1646,7 @@
           </span>
 
           <span class="v">
-            ${esc(
-              state.nome || ""
-            )}
+            ${safeName}
           </span>
 
         </div>
@@ -1739,9 +1658,7 @@
           </span>
 
           <span class="v">
-            ${
-              state.service.price || 0
-            }€
+            ${safePrice}€
           </span>
 
         </div>
@@ -1773,19 +1690,27 @@
     }
 
     /*
-      CORREÇÃO:
-      Não usamos RG.parseISO().
-      A data do Supabase permanece
-      YYYY-MM-DD.
+      Aqui também não mexemos no valor original
+      da data guardada na marcação.
     */
 
     const dateValue =
-      bk["Data"] || "";
-
-    const formattedDate =
-      formatBookingDate(
-        dateValue
+      String(
+        bk["Data"] || ""
       );
+
+    let formattedDate =
+      dateValue;
+
+    const parts =
+      dateValue.split("-");
+
+    if (
+      parts.length === 3
+    ) {
+      formattedDate =
+        `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
 
     body.innerHTML = `
       <div class="b-success">
@@ -1842,8 +1767,7 @@
 
             <span class="v">
               ${esc(
-                formattedDate ||
-                String(dateValue)
+                formattedDate
               )}
             </span>
 
@@ -2060,10 +1984,6 @@
           barber_name:
             barberName,
 
-          /*
-            A DATA enviada para o Supabase
-            continua EXATAMENTE a selecionada.
-          */
           booking_date:
             state.date,
 
